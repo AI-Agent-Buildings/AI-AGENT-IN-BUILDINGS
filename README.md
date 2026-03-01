@@ -20,3 +20,4 @@ The system is currently in the prototype phase and relies on manual dataset inpu
 Future Work
 
 Future development will focus on integrating real-time sensors, automating data collection, deploying intelligent decision-making workflows, and expanding the system to include additional environmental parameters for a more comprehensive monitoring solution.
+------------------------------------------
