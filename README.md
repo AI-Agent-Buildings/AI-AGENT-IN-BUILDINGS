@@ -1,5 +1,5 @@
 # AI-AGENT-IN-BUILDINGS
-AI agents for smart energy management in a university
+AI Agents For Smart Energy Management In A University
 -------------------------------------------
 Project Overview
 
