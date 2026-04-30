@@ -1,0 +1,652 @@
+{
+  "name": "Agentic Climate Intelligence Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1424,
+        224
+      ],
+      "id": "6d436b31-965e-4f4c-9552-870feb02f0ca",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "SnbhGLqgqgbZojh1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        2224,
+        224
+      ],
+      "id": "413847e4-e970-4daa-8025-455774dece73",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "SnbhGLqgqgbZojh1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        3024,
+        224
+      ],
+      "id": "f6b06ea2-438e-49ba-be29-5210b332f385",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "SnbhGLqgqgbZojh1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f0000000-0000-0000-0000-000000000001",
+              "name": "date",
+              "value": "={{ $('Prediction API Webhook').item.json.body.date }}",
+              "type": "string"
+            },
+            {
+              "id": "f0000000-0000-0000-0000-000000000002",
+              "name": "room_id",
+              "value": "={{ $('Prediction API Webhook').item.json.body.room_id }}",
+              "type": "number"
+            },
+            {
+              "id": "f0000000-0000-0000-0000-000000000003",
+              "name": "model",
+              "value": "={{ $json.model }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a2cced11-efc9-4487-a79c-cfb53238e830",
+      "name": "Configure Prediction Request",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        896,
+        0
+      ],
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agenticAI",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "e67e6187-10f4-4573-a7f1-d1dbd7118049",
+      "name": "Prediction API Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "climate-predict",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1hQYo9UwQeL2ugsUUfPRptsHJGIk5nTJeUld7IbyGMwc",
+          "mode": "list",
+          "cachedResultName": "sensor-data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hQYo9UwQeL2ugsUUfPRptsHJGIk5nTJeUld7IbyGMwc/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 352134376,
+          "mode": "list",
+          "cachedResultName": "dataset",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hQYo9UwQeL2ugsUUfPRptsHJGIk5nTJeUld7IbyGMwc/edit#gid=352134376"
+        },
+        "options": {}
+      },
+      "id": "dc250058-f8f0-4652-b6a2-5b8704a3bcbe",
+      "name": "Load Historical Dataset",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "4z8dMHOQEGYT990U",
+          "name": "Google Sheets OAuth2 API"
+        }
+      },
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process data and prepare results\nconst items = $input.all();\nif (items.length < 20) {\n  throw new Error(`Only ${items.length} rows \u2014 need ~20+ to build a useful summary.`);\n}\n\n// -------- Bucket rows per room --------\nconst perRoom = new Map();\nconst allTimestamps = [];\n\nfor (const { json: row } of items) {\n  const ts = new Date(row.timestamp);\n  if (isNaN(ts.getTime())) continue;\n  const t = +row.temperature, h = +row.humidity;\n  if (!Number.isFinite(t) || !Number.isFinite(h)) continue;\n  const room = +row.room_id;\n  if (!perRoom.has(room)) perRoom.set(room, []);\n  perRoom.get(room).push({ ts, t, h });\n  allTimestamps.push(ts);\n}\n\nif (perRoom.size === 0) {\n  throw new Error(\"No valid rows. Check upstream items have timestamp, room_id, temperature, humidity.\");\n}\n\n// -------- Helpers --------\nfunction mean(a)     { return a.reduce((s,x) => s+x, 0) / a.length; }\nfunction std(a)      { const m = mean(a); return Math.sqrt(mean(a.map(x => (x-m)*(x-m)))); }\nfunction quantile(a, q) {\n  const s = [...a].sort((x,y) => x-y);\n  const i = (s.length - 1) * q;\n  const lo = Math.floor(i), hi = Math.ceil(i);\n  return lo === hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (i - lo);\n}\nfunction round(x, d=2) { return Number(x.toFixed(d)); }\n\n// -------- Per-room summary --------\nconst summary = {};\nfor (const [room, rows] of perRoom.entries()) {\n  rows.sort((a,b) => a.ts - b.ts);\n  const temps = rows.map(r => r.t);\n  const hums  = rows.map(r => r.h);\n\n  // Monthly aggregates\n  const byMonth = {};\n  for (const r of rows) {\n    const key = `${r.ts.getUTCFullYear()}-${String(r.ts.getUTCMonth()+1).padStart(2,\"0\")}`;\n    if (!byMonth[key]) byMonth[key] = { t: [], h: [] };\n    byMonth[key].t.push(r.t);\n    byMonth[key].h.push(r.h);\n  }\n  const monthlyStats = {};\n  for (const [k, v] of Object.entries(byMonth)) {\n    monthlyStats[k] = {\n      n: v.t.length,\n      temp_mean: round(mean(v.t)),\n      temp_std:  round(std(v.t)),\n      hum_mean:  round(mean(v.h)),\n      hum_std:   round(std(v.h)),\n    };\n  }\n\n  // Hour-of-day profile (24 buckets)\n  const byHour = Array.from({length: 24}, () => ({t: [], h: []}));\n  for (const r of rows) {\n    const h = r.ts.getUTCHours();\n    byHour[h].t.push(r.t);\n    byHour[h].h.push(r.h);\n  }\n  const hourlyProfile = byHour.map((b, h) => ({\n    hour: h,\n    n: b.t.length,\n    temp_mean: b.t.length ? round(mean(b.t)) : null,\n    hum_mean:  b.h.length ? round(mean(b.h)) : null,\n  })).filter(b => b.n > 0);\n\n  summary[String(room)] = {\n    n_samples: rows.length,\n    date_range: { start: rows[0].ts.toISOString(), end: rows[rows.length-1].ts.toISOString() },\n    temperature: {\n      mean:   round(mean(temps)),\n      std:    round(std(temps)),\n      min:    round(Math.min(...temps)),\n      max:    round(Math.max(...temps)),\n      p10:    round(quantile(temps, 0.10)),\n      p50:    round(quantile(temps, 0.50)),\n      p90:    round(quantile(temps, 0.90)),\n    },\n    humidity: {\n      mean:   round(mean(hums)),\n      std:    round(std(hums)),\n      min:    round(Math.min(...hums)),\n      max:    round(Math.max(...hums)),\n      p10:    round(quantile(hums, 0.10)),\n      p50:    round(quantile(hums, 0.50)),\n      p90:    round(quantile(hums, 0.90)),\n    },\n    monthly: monthlyStats,\n    hourly_profile: hourlyProfile,\n  };\n}\n\nallTimestamps.sort((a,b) => a-b);\n\nconst model = {\n  schema: \"llm-context-v1\",\n  target: \"both\",\n  trained_at: new Date().toISOString(),\n  note: \"This is not a fitted model. It is a statistical digest used as context for an LLM predictor.\",\n  rooms: Array.from(perRoom.keys()).sort((a,b) => a-b),\n  data_range: {\n    start: allTimestamps[0].toISOString(),\n    end:   allTimestamps[allTimestamps.length - 1].toISOString(),\n  },\n  summary,\n};\n\n// Mirror the previous training node's behaviour so nothing downstream breaks.\nconst staticData = $getWorkflowStaticData(\"global\");\nstaticData.temperatureModel = model;\n\nreturn [{ json: { model } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "b1e99a98-a7fc-4eef-87a0-7f96203e3f5c",
+      "name": "Build Statistical Context",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4ddd3e92-6627-4a56-bcea-b6858a307cc9",
+              "name": "model",
+              "value": "={{ $json.model }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        0
+      ],
+      "id": "6a69f030-4870-4b28-8625-d3abd70aab80",
+      "name": "Prepare Input Parameters",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Process data and prepare results\nfunction resolveModel() {\n  const item = $input.item.json;\n  if (item && item.model && item.model.schema === \"llm-context-v1\") return item.model;\n  try {\n    const sd = $getWorkflowStaticData(\"global\");\n    if (sd && sd.temperatureModel && sd.temperatureModel.schema === \"llm-context-v1\") {\n      return sd.temperatureModel;\n    }\n  } catch (_) {}\n  throw new Error(\n    \"No LLM-context bundle available. Run the training workflow first so the \" +\n    \"statistical summary is written to workflow static data.\"\n  );\n}\n\nconst item = $input.item.json;\nconst model = resolveModel();\n\nif (!item.date)    throw new Error(\"Missing `date` on input item.\");\nif (item.room_id == null) throw new Error(\"Missing `room_id` on input item.\");\nconst target = new Date(item.date);\nif (isNaN(target.getTime())) throw new Error(`Invalid date: ${item.date}`);\n\nconst room = +item.room_id;\nconst roomKey = String(room);\nif (!(roomKey in model.summary)) {\n  throw new Error(`Unknown room_id ${room}. Trained on: ${model.rooms.join(\", \")}`);\n}\n\nconst s = model.summary[roomKey];\n\n// --- Build a compact, structured context the LLM can pattern-match on ---\n\nconst monthlyLines = Object.entries(s.monthly)\n  .sort(([a],[b]) => a.localeCompare(b))\n  .map(([mo, v]) =>\n    `  ${mo}: temp ${v.temp_mean}\u00b0C (\u00b1${v.temp_std}), hum ${v.hum_mean}% (\u00b1${v.hum_std}), n=${v.n}`\n  ).join(\"\\n\");\n\nconst hourlyLines = s.hourly_profile\n  .map(b => `  ${String(b.hour).padStart(2,\"0\")}h: ${b.temp_mean}\u00b0C, ${b.hum_mean}%`)\n  .join(\"\\n\");\n\nconst targetMonth = `${target.getUTCFullYear()}-${String(target.getUTCMonth()+1).padStart(2,\"0\")}`;\nconst targetHour  = target.getUTCHours();\nconst targetDay   = target.toISOString().slice(0, 10);\nconst trainingEnd = new Date(model.data_range.end);\nconst daysPast    = Math.round(Math.max(0, (target - trainingEnd) / 86400000));\n\nconst system = [\n  \"You are a time-series predictor for indoor climate sensors.\",\n  \"Given statistical context about a room's temperature and humidity, you estimate the most likely reading at a specific date and time.\",\n  \"You respond ONLY with valid JSON in the exact shape: {\\\"temperature\\\": <number>, \\\"humidity\\\": <number>, \\\"reasoning\\\": \\\"<one short sentence>\\\"}.\",\n  \"Do not wrap the JSON in markdown, code fences, or prose. No preamble, no explanation outside the JSON.\",\n  \"Temperatures are in \u00b0C; humidity is a percentage 0\u2013100. Round to one decimal place.\",\n].join(\"\\n\");\n\nconst user = [\n  `# Task`,\n  `Predict temperature and humidity for Room ${room} at ${target.toISOString()}.`,\n  ``,\n  `# Context`,\n  `Training data date range: ${model.data_range.start} to ${model.data_range.end}`,\n  `This target is ${daysPast} day(s) past the end of training.`,\n  `The target falls in month ${targetMonth} at hour ${targetHour} UTC.`,\n  ``,\n  `# Overall stats for Room ${room} (${s.n_samples} samples)`,\n  `Temperature \u2014 mean ${s.temperature.mean}\u00b0C, std ${s.temperature.std}, range ${s.temperature.min}\u2013${s.temperature.max}\u00b0C, median ${s.temperature.p50}\u00b0C`,\n  `Humidity    \u2014 mean ${s.humidity.mean}%, std ${s.humidity.std}, range ${s.humidity.min}\u2013${s.humidity.max}%, median ${s.humidity.p50}%`,\n  ``,\n  `# Monthly profile for Room ${room}`,\n  monthlyLines,\n  ``,\n  `# Hour-of-day profile for Room ${room}`,\n  hourlyLines,\n  ``,\n  `# Instructions`,\n  `1. Look up the training month that best matches the target month (${targetMonth}). If the target is past the end of training, extrapolate using the annual cycle visible in the monthly profile.`,\n  `2. Adjust for hour of day using the hourly profile.`,\n  `3. Stay within plausible indoor ranges (AC-regulated room).`,\n  `4. Output ONLY the JSON object. Nothing else.`,\n].join(\"\\n\");\n\n// Pass everything the response parser will need to stitch the final output.\nreturn {\n  json: {\n    ...item,\n    llm_input: { system, user },\n    _context: {\n      date_iso: target.toISOString(),\n      room_id: room,\n      model_data_range: model.data_range,\n      model_trained_at: model.trained_at,\n      extrapolation_days: daysPast,\n    },\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "66a7cda9-88cb-4785-8d47-56f55990fa61",
+      "name": "Generate Prediction Prompt",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.llm_input.user }}",
+        "options": {
+          "systemMessage": "={{ $json.llm_input.system }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1344,
+        0
+      ],
+      "id": "d2944cec-7c9a-4ea4-8c6d-5b4bc1c843c0",
+      "name": "Forecast Agent",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Process data and prepare results\nconst item = $input.item.json;\n\n// --- Find the LLM's text response in whichever field it lives in ---\nfunction findText(o) {\n  if (!o) return null;\n  if (typeof o === \"string\") return o;\n  if (Array.isArray(o.content) && o.content[0] && o.content[0].text) return o.content[0].text;\n  if (typeof o.output === \"string\") return o.output;\n  if (o.message && typeof o.message.content === \"string\") return o.message.content;\n  if (Array.isArray(o.choices) && o.choices[0] && o.choices[0].message) return o.choices[0].message.content;\n  if (typeof o.text === \"string\")     return o.text;\n  if (typeof o.response === \"string\") return o.response;\n  if (typeof o.content === \"string\")  return o.content;\n  return null;\n}\n\nconst raw = findText(item) || findText(item.data) || findText(item.body);\nif (!raw) {\n  throw new Error(\n    \"Could not find the LLM's text response. Got keys: \" + Object.keys(item).join(\", \") +\n    \". Adjust the parser if your LLM node emits a different shape.\"\n  );\n}\n\n// --- Extract the JSON object from the response ---\n// The model was asked to output pure JSON, but LLMs sometimes wrap it in\n// markdown fences or add a prefix. Be forgiving.\nfunction extractJson(text) {\n  // Strip common markdown fences\n  let s = text.trim()\n    .replace(/^```(?:json)?\\s*/i, \"\")\n    .replace(/\\s*```$/i, \"\")\n    .trim();\n\n  // If the response starts cleanly with a JSON object, parse directly.\n  if (s.startsWith(\"{\")) {\n    try { return JSON.parse(s); } catch (_) { /* fall through */ }\n  }\n\n  // Otherwise find the first {...} block and try that.\n  const start = s.indexOf(\"{\");\n  const end   = s.lastIndexOf(\"}\");\n  if (start !== -1 && end > start) {\n    try { return JSON.parse(s.slice(start, end + 1)); } catch (_) {}\n  }\n  throw new Error(\"Could not parse JSON from LLM output. Raw: \" + text.slice(0, 200));\n}\n\nconst parsed = extractJson(raw);\n\n// --- Sanity-check and coerce ---\nconst temp = Number(parsed.temperature);\nconst hum  = Number(parsed.humidity);\nif (!Number.isFinite(temp) || !Number.isFinite(hum)) {\n  throw new Error(`LLM returned non-numeric values: temperature=${parsed.temperature}, humidity=${parsed.humidity}`);\n}\nif (temp < 0 || temp > 50)  throw new Error(`LLM temperature out of plausible range: ${temp}\u00b0C`);\nif (hum  < 0 || hum  > 100) throw new Error(`LLM humidity out of plausible range: ${hum}%`);\n\n// --- Pull through the context we stashed in the prompt-builder ---\n// The AI Agent node strips arbitrary fields from the item, so we can't rely\n// on `item._context`. Reach back to the Build Prompt node directly.\nlet ctx = item._context;\nif (!ctx || ctx.room_id == null) {\n  try {\n    ctx = $('Generate Prediction Prompt').item.json._context;\n  } catch (_) {\n    ctx = {};\n  }\n}\nif (!ctx || ctx.room_id == null) {\n  throw new Error(\n    \"Could not find the request context (date/room_id). The AI Agent node \" +\n    \"stripped it from the item, and the Build Prompt node was not reachable. \" +\n    \"Check that the Build Prompt node is named exactly 'Build Prompt'.\"\n  );\n}\n\nreturn {\n  json: {\n    prediction: {\n      temperature: Number(temp.toFixed(2)),\n      humidity:    Number(hum.toFixed(2)),\n      room_id: ctx.room_id,\n      date: ctx.date_iso,\n      model_trained_at: ctx.model_trained_at,\n      model_data_range: ctx.model_data_range,\n      extrapolation_days: ctx.extrapolation_days,\n      source: \"llm\",\n      reasoning: typeof parsed.reasoning === \"string\" ? parsed.reasoning : null,\n    },\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1696,
+        0
+      ],
+      "id": "ed96a533-8b1a-488c-adf6-8946f5dac5a4",
+      "name": "Parse Forecast Output",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// BUILD MONTH-AWARE REALISTIC ANOMALY PROMPT\n// Run Once for Each Item\n\nfunction mean(arr) {\n  return arr.reduce((sum, v) => sum + v, 0) / arr.length;\n}\n\nconst item = $json;\nconst prediction = item.prediction || item;\n\nconst predictedTemp = Number(prediction.temperature);\nconst predictedHum = Number(prediction.humidity);\n\nconst roomId = String(prediction.room_id);\nconst targetDate = new Date(prediction.date);\nconst targetMonth = targetDate.getMonth() + 1;\n\n// Get historical rows from Google Sheet\nconst historicalRows = $(\"Load Historical Dataset\").all();\n\n// Same room + same month\nlet filteredRows = historicalRows.filter(r => {\n  const rowRoom = String(r.json.room_id) === roomId;\n  const rowDate = new Date(r.json.timestamp);\n  const rowMonth = rowDate.getMonth() + 1;\n  return rowRoom && rowMonth === targetMonth;\n});\n\n// Fallback = same room all year\nif (filteredRows.length < 20) {\n  filteredRows = historicalRows.filter(r => String(r.json.room_id) === roomId);\n}\n\n// Arrays\nconst temps = filteredRows\n  .map(r => Number(r.json.temperature))\n  .filter(Number.isFinite);\n\nconst hums = filteredRows\n  .map(r => Number(r.json.humidity))\n  .filter(Number.isFinite);\n\n// Means\nconst tempMean = temps.length ? mean(temps) : 22;\nconst humMean = hums.length ? mean(hums) : 55;\n\n// UAE realistic indoor monthly comfort thresholds\nconst comfortMap = {\n  1:  { tLow: 21, tHigh: 24, hLow: 40, hHigh: 65 },\n  2:  { tLow: 21, tHigh: 24, hLow: 40, hHigh: 65 },\n  3:  { tLow: 22, tHigh: 24, hLow: 40, hHigh: 65 },\n  4:  { tLow: 22, tHigh: 25, hLow: 40, hHigh: 68 },\n  5:  { tLow: 20, tHigh: 23, hLow: 45, hHigh: 70 },\n  6:  { tLow: 19, tHigh: 22, hLow: 45, hHigh: 72 },\n  7:  { tLow: 19, tHigh: 22, hLow: 45, hHigh: 75 },\n  8:  { tLow: 19, tHigh: 22, hLow: 45, hHigh: 75 },\n  9:  { tLow: 20, tHigh: 23, hLow: 45, hHigh: 72 },\n  10: { tLow: 21, tHigh: 24, hLow: 40, hHigh: 68 },\n  11: { tLow: 21, tHigh: 24, hLow: 40, hHigh: 65 },\n  12: { tLow: 21, tHigh: 24, hLow: 40, hHigh: 65 }\n};\n\nconst c = comfortMap[targetMonth];\n\n// Small historical adjustment only\nconst tempAdj = Math.max(-0.5, Math.min(0.5, tempMean - ((c.tLow + c.tHigh) / 2)));\nconst humAdj = Math.max(-3, Math.min(3, humMean - ((c.hLow + c.hHigh) / 2)));\n\nconst tempLower = Number((c.tLow + tempAdj).toFixed(1));\nconst tempUpper = Number((c.tHigh + tempAdj).toFixed(1));\nconst humLower = Number((c.hLow + humAdj).toFixed(1));\nconst humUpper = Number((c.hHigh + humAdj).toFixed(1));\n\n// LLM prompt\nconst system = `\nYou are an anomaly detection agent.\nUse the thresholds below.\nReturn ONLY valid JSON.\nNo explanation.\n\nFormat:\n{\n  \"temperature_status\": \"Normal\",\n  \"humidity_status\": \"Normal\"\n}\n`;\n\nconst user = `\nPredicted values:\nTemperature = ${predictedTemp}\nHumidity = ${predictedHum}\n\nRoom = ${roomId}\nTarget month = ${targetMonth}\n\nThresholds:\nTemperature lower threshold = ${tempLower}\nTemperature upper threshold = ${tempUpper}\n\nHumidity lower threshold = ${humLower}\nHumidity upper threshold = ${humUpper}\n\nRules:\nIf temperature > upper => High Anomaly\nIf temperature < lower => Low Anomaly\nElse => Normal\n\nIf humidity > upper => High Anomaly\nIf humidity < lower => Low Anomaly\nElse => Normal\n`;\n\nreturn {\n  json: {\n    prediction,\n\n    temp_lower: tempLower,\n    temp_upper: tempUpper,\n    hum_lower: humLower,\n    hum_upper: humUpper,\n\n    temp_mean: Number(tempMean.toFixed(1)),\n    hum_mean: Number(humMean.toFixed(1)),\n\n    threshold_month: targetMonth,\n    threshold_samples: filteredRows.length,\n\n    anomaly_input: {\n      system,\n      user\n    },\n\n    _anomaly_context: {\n      temp_lower: tempLower,\n      temp_upper: tempUpper,\n      hum_lower: humLower,\n      hum_upper: humUpper,\n      threshold_month: targetMonth\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "id": "4c99dce9-7e9e-4f80-9a2e-7bf4149d850b",
+      "name": "Generate Anomaly Prompt",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.anomaly_input.system }}\n{{ $json.anomaly_input.user }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2144,
+        0
+      ],
+      "id": "e945dc6e-644b-4ea6-a3fc-fde3d7202849",
+      "name": "Anomaly Agent",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Process data and prepare results\nconst raw =\n  $json.output ||\n  $json.text ||\n  $json.response ||\n  $json.message?.content ||\n  JSON.stringify($json);\n\nlet cleaned = String(raw)\n  .replace(/```json/g, \"\")\n  .replace(/```/g, \"\")\n  .trim();\n\nconst anomaly = JSON.parse(cleaned);\n\n// IMPORTANT: use exact node name\nconst previous = $(\"Generate Anomaly Prompt\").item.json;\n\nconst prediction = previous.prediction;\nconst ctx = previous._anomaly_context || {};\n\nreturn {\n  json: {\n    prediction: {\n      ...prediction,\n\n      temperature_status: anomaly.temperature_status || \"Normal\",\n      humidity_status: anomaly.humidity_status || \"Normal\",\n\n      temp_lower: ctx.temp_lower,\n      temp_upper: ctx.temp_upper,\n      hum_lower: ctx.hum_lower,\n      hum_upper: ctx.hum_upper,\n      temp_mean: ctx.temp_mean,\n      hum_mean: ctx.hum_mean,\n      threshold_month: ctx.threshold_month,\n      threshold_samples: ctx.threshold_samples,\n\n      _backendBadge: \"llm\"\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2496,
+        0
+      ],
+      "id": "eef74f39-234a-4aaf-a94f-66724f7d6465",
+      "name": "Parse Anomaly Output",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Process data and prepare results\nconst p = $json.prediction || $json;\nconst idealTemp = Number(p.temp_mean || 22).toFixed(1);\nconst idealHum = Number(p.hum_mean || 55).toFixed(1);\n\nconst prompt = `\nYou are the Smart Building Recommendation Agent.\n\nAnalyze the final prediction and anomaly detection result.\n\nPrediction Data:\n${JSON.stringify(p, null, 2)}\n\nRules:\n1. Target temperature = ${idealTemp}\u00b0C\n2. Target humidity = ${idealHum}%\n3. If temperature_status is High Anomaly:\n   recommend decreasing temperature toward target.\n4. If temperature_status is Low Anomaly:\n   recommend increasing temperature toward target.\n5. If humidity_status is High Anomaly:\n   recommend decreasing humidity using ventilation/dehumidification.\n6. If humidity_status is Low Anomaly:\n   recommend increasing humidity for comfort.\n7. If both are Normal:\n   recommend maintaining current settings.\n8. Return JSON only.\n9. No markdown.\n\nReturn exactly:\n\n{\n  \"recommendation\": \"...\",\n  \"recommended_temperature\": ${idealTemp},\n  \"recommended_humidity\": ${idealHum}\n}\n`;\n\nreturn {\n  json: {\n    prediction: p,\n    chatInput: prompt\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2720,
+        0
+      ],
+      "id": "3bf53e2d-3a53-4a86-963c-d6f0d89c4e5c",
+      "name": "Generate Recommendation Prompt",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2944,
+        0
+      ],
+      "id": "89b20d67-d185-40f2-abc1-c3c52de7e153",
+      "name": "Decision Agent",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Process data and prepare results\nconst raw =\n  $json.output ||\n  $json.text ||\n  $json.response ||\n  $json.message?.content ||\n  \"\";\n\nlet cleaned = String(raw)\n  .replace(/```json/g, \"\")\n  .replace(/```/g, \"\")\n  .trim();\n\nlet rec;\n\ntry {\n  rec = JSON.parse(cleaned);\n} catch (e) {\n  rec = {\n    recommendation: cleaned || \"Conditions analyzed. Maintain system settings unless abnormal readings continue.\",\n    recommended_temperature: $(\"Generate Recommendation Prompt\").item.json.prediction.temp_mean || 22,\n    recommended_humidity: $(\"Generate Recommendation Prompt\").item.json.prediction.hum_mean || 55\n  };\n}\n\nconst prediction = $(\"Generate Recommendation Prompt\").item.json.prediction;\n\nreturn {\n  json: {\n    prediction: {\n      ...prediction,\n      recommendation: rec.recommendation,\n      recommended_temperature: rec.recommended_temperature,\n      recommended_humidity: rec.recommended_humidity,\n      _backendBadge: \"llm\"\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3296,
+        0
+      ],
+      "id": "62593903-95f5-48c4-b50b-5aded0da5ce8",
+      "name": "Parse Decision Output",
+      "notes": "",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "AgentLogs",
+          "mode": "list",
+          "cachedResultName": "AgentLogs"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "input_timestamp",
+              "value": "={{$json.prediction.date}}"
+            },
+            {
+              "column": "username",
+              "value": "admin"
+            },
+            {
+              "column": "room_id",
+              "value": "={{$json.prediction.room_id}}"
+            },
+            {
+              "column": "temperature",
+              "value": "={{$json.prediction.temperature}}"
+            },
+            {
+              "column": "humidity",
+              "value": "={{$json.prediction.humidity}}"
+            },
+            {
+              "column": "recommendation",
+              "value": "={{$json.recommendation}}"
+            },
+            {
+              "column": "recommended_temperature",
+              "value": "={{$json.recommended_temperature}}"
+            },
+            {
+              "column": "recommended_humidity",
+              "value": "={{$json.recommended_humidity}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        3520,
+        0
+      ],
+      "id": "b0ce11ff-0704-4602-b7ca-ff00855cd8dd",
+      "name": "Log Results to Database",
+      "credentials": {
+        "mySql": {
+          "id": "zR4XF5tm39njrlyA",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => {\n  const a = $(\"Generate Anomaly Prompt\").item.json;\n  const p = a.prediction || {};\n\n  return {\n    temperature: Number(p.temperature ?? 22),\n    humidity: Number(p.humidity ?? 55),\n    room_id: Number(p.room_id ?? 2),\n    date: p.date || new Date().toISOString(),\n\n    recommendation: $json.recommendation || \"Conditions are normal. Maintain current settings.\",\n    recommended_temperature: Number($json.recommended_temperature ?? a.temp_mean ?? 22),\n    recommended_humidity: Number($json.recommended_humidity ?? a.hum_mean ?? 55),\n\n    temperature_status: $json.temperature_status || \"Normal\",\n    humidity_status: $json.humidity_status || \"Normal\",\n\n    temp_lower: Number(a.temp_lower ?? a._anomaly_context?.temp_lower),\n    temp_upper: Number(a.temp_upper ?? a._anomaly_context?.temp_upper),\n    hum_lower: Number(a.hum_lower ?? a._anomaly_context?.hum_lower),\n    hum_upper: Number(a.hum_upper ?? a._anomaly_context?.hum_upper),\n\n    threshold_month: a.threshold_month ?? a._anomaly_context?.threshold_month,\n    threshold_samples: a.threshold_samples ?? a._anomaly_context?.threshold_samples,\n\n    _backendBadge: \"llm\"\n  };\n})() }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "f6b2a426-9390-4f21-b57e-c34e5e6d5d3b",
+      "name": "Return Prediction Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3744,
+        0
+      ],
+      "notes": "",
+      "notesInFlow": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Forecast Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Anomaly Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Decision Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configure Prediction Request": {
+      "main": [
+        [
+          {
+            "node": "Generate Prediction Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prediction API Webhook": {
+      "main": [
+        [
+          {
+            "node": "Load Historical Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Historical Dataset": {
+      "main": [
+        [
+          {
+            "node": "Build Statistical Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Statistical Context": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input Parameters": {
+      "main": [
+        [
+          {
+            "node": "Configure Prediction Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Prediction Prompt": {
+      "main": [
+        [
+          {
+            "node": "Forecast Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Forecast Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Forecast Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Forecast Output": {
+      "main": [
+        [
+          {
+            "node": "Generate Anomaly Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Anomaly Prompt": {
+      "main": [
+        [
+          {
+            "node": "Anomaly Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anomaly Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Anomaly Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Anomaly Output": {
+      "main": [
+        [
+          {
+            "node": "Generate Recommendation Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Recommendation Prompt": {
+      "main": [
+        [
+          {
+            "node": "Decision Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Decision Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Decision Output": {
+      "main": [
+        [
+          {
+            "node": "Log Results to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Results to Database": {
+      "main": [
+        [
+          {
+            "node": "Return Prediction Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "4e42b7ed-4437-414a-af5e-55612fb6667f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7dc0c2b5be7b2ccc795fd1c0fe668b337c0e1f0666720c10261c65c4e57d7b77"
+  },
+  "id": "CBrIwujztLOmTs1E",
+  "tags": []
+}
