@@ -1,0 +1,386 @@
+{
+  "name": "Regression Prediction Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pred",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e28734b1-1e63-410e-b80d-4156f2464016",
+      "name": "Sensor Input Webhook",
+      "webhookId": "de97dc26-9485-4596-8e14-b74cba0ba64f",
+      "notes": "Human note: This is the entry point from the frontend/dashboard. It receives POST data such as room_id and date, then starts the workflow.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1hQYo9UwQeL2ugsUUfPRptsHJGIk5nTJeUld7IbyGMwc",
+          "mode": "list",
+          "cachedResultName": "sensor-data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hQYo9UwQeL2ugsUUfPRptsHJGIk5nTJeUld7IbyGMwc/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 352134376,
+          "mode": "list",
+          "cachedResultName": "dataset",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hQYo9UwQeL2ugsUUfPRptsHJGIk5nTJeUld7IbyGMwc/edit#gid=352134376"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "32b5edc8-84af-436a-9664-893f05a7bd45",
+      "name": "Load Historical Dataset",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "4z8dMHOQEGYT990U",
+          "name": "Google Sheets OAuth2 API"
+        }
+      },
+      "notes": "Human note: This node loads the historical sensor dataset from Google Sheets. The data is used for prediction, thresholds, and dashboard outputs.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// HUMANIZED CODE COMMENTS — Generate Predictions\n// Workflow: Regression Prediction Workflow\n// ----------------------------------------------------------------------------\n// Purpose:\n// // This node trains the Ridge Regression model from historical sensor data.\n// It creates time-based features such as hour, day, and seasonality using sine/cosine functions.\n// The model learns separate temperature and humidity patterns for each room.\n//\n// Notes:\n// - This comment block was added for GitHub/readability.\n// - The original logic below was kept unchanged.\n// - n8n workflow JSON cannot use comments outside strings, so comments are placed inside Code nodes.\n// ============================================================================\n\n// ============================================================================\n// n8n Code Node — Train Ridge regression for TEMPERATURE + HUMIDITY\n// ============================================================================\n//\n// Place this in a Code node (JavaScript), \"Run Once for All Items\" mode.\n//\n// INPUT   Each item has: timestamp, room_id, temperature, humidity\n//\n// OUTPUT  A single item with the trained model:\n//   {\n//     model: {\n//       schema: \"ridge-fourier-v2\",          // v2 = now holds two targets\n//       targets: [\"temperature\", \"humidity\"],\n//       rooms: [1, 2, 3],\n//       coefficients: {\n//         temperature: { \"1\": [16 floats], \"2\": [...], \"3\": [...] },\n//         humidity:    { \"1\": [16 floats], \"2\": [...], \"3\": [...] }\n//       },\n//       intercepts:   { temperature: {...}, humidity: {...} },\n//       stats:        { temperature: {...}, humidity: {...} },\n//       data_range:   { start, end }\n//     }\n//   }\n//\n// Also written to workflow static data as `temperatureModel`, so the\n// prediction node can find it across workflow executions.\n// ============================================================================\n\nfunction buildFeatureRow(date) {\n  const hour = date.getUTCHours() + date.getUTCMinutes() / 60;\n  const yearStart = Date.UTC(date.getUTCFullYear(), 0, 0);\n  const doy = (date.getTime() - yearStart) / 86400000;\n  const dow = ((date.getUTCDay() + 6) % 7) + hour / 24;\n  const f = [];\n  for (const k of [1, 2, 3]) {\n    f.push(Math.sin(2 * Math.PI * k * hour / 24));\n    f.push(Math.cos(2 * Math.PI * k * hour / 24));\n  }\n  for (const k of [1, 2, 3]) {\n    f.push(Math.sin(2 * Math.PI * k * doy / 365.25));\n    f.push(Math.cos(2 * Math.PI * k * doy / 365.25));\n  }\n  for (const k of [1, 2]) {\n    f.push(Math.sin(2 * Math.PI * k * dow / 7));\n    f.push(Math.cos(2 * Math.PI * k * dow / 7));\n  }\n  return f;\n}\n\nconst FEATURE_NAMES = [\n  \"hour_sin_1\",\"hour_cos_1\",\"hour_sin_2\",\"hour_cos_2\",\"hour_sin_3\",\"hour_cos_3\",\n  \"doy_sin_1\",\"doy_cos_1\",\"doy_sin_2\",\"doy_cos_2\",\"doy_sin_3\",\"doy_cos_3\",\n  \"dow_sin_1\",\"dow_cos_1\",\"dow_sin_2\",\"dow_cos_2\",\n];\n\n// Solve (XᵀX + αI) β = Xᵀy. Intercept column prepended, not regularized.\nfunction solveRidge(X, y, alpha) {\n  const n = X.length, p = X[0].length, P = p + 1;\n  const XtX = Array.from({ length: P }, () => new Array(P).fill(0));\n  const Xty = new Array(P).fill(0);\n  for (let i = 0; i < n; i++) {\n    const row = [1, ...X[i]];\n    const yi = y[i];\n    for (let a = 0; a < P; a++) {\n      Xty[a] += row[a] * yi;\n      for (let b = 0; b < P; b++) XtX[a][b] += row[a] * row[b];\n    }\n  }\n  for (let k = 1; k < P; k++) XtX[k][k] += alpha;\n  const A = XtX.map((r, i) => [...r, Xty[i]]);\n  for (let col = 0; col < P; col++) {\n    let pivot = col;\n    for (let r = col + 1; r < P; r++) {\n      if (Math.abs(A[r][col]) > Math.abs(A[pivot][col])) pivot = r;\n    }\n    if (Math.abs(A[pivot][col]) < 1e-12) {\n      throw new Error(`Singular matrix at column ${col}.`);\n    }\n    if (pivot !== col) [A[col], A[pivot]] = [A[pivot], A[col]];\n    for (let r = col + 1; r < P; r++) {\n      const factor = A[r][col] / A[col][col];\n      for (let c = col; c <= P; c++) A[r][c] -= factor * A[col][c];\n    }\n  }\n  const beta = new Array(P).fill(0);\n  for (let r = P - 1; r >= 0; r--) {\n    let s = A[r][P];\n    for (let c = r + 1; c < P; c++) s -= A[r][c] * beta[c];\n    beta[r] = s / A[r][r];\n  }\n  return { intercept: beta[0], coefficients: beta.slice(1) };\n}\n\n// Mean absolute error helper\nfunction mae(X, y, intercept, coef) {\n  let sum = 0;\n  for (let i = 0; i < X.length; i++) {\n    let p = intercept;\n    for (let j = 0; j < coef.length; j++) p += coef[j] * X[i][j];\n    sum += Math.abs(p - y[i]);\n  }\n  return sum / X.length;\n}\n\n// ---------- Main ----------\nconst items = $input.all();\nif (items.length < 20) {\n  throw new Error(`Only ${items.length} rows — need ~20+ for a meaningful fit.`);\n}\n\n// Bucket by room, dedupe timestamps.\nconst perRoom = new Map();\nconst allTimestamps = [];\n\nfor (const { json: row } of items) {\n  const ts = new Date(row.timestamp);\n  if (isNaN(ts.getTime())) continue;\n  const t = +row.temperature, h = +row.humidity;\n  if (!Number.isFinite(t) || !Number.isFinite(h)) continue;\n  const room = +row.room_id;\n  if (!perRoom.has(room)) perRoom.set(room, new Map());\n  const bucket = perRoom.get(room);\n  const key = ts.toISOString();\n  if (bucket.has(key)) {\n    const prev = bucket.get(key);\n    bucket.set(key, {\n      ts,\n      temperature: (prev.temperature + t) / 2,\n      humidity:    (prev.humidity    + h) / 2,\n    });\n  } else {\n    bucket.set(key, { ts, temperature: t, humidity: h });\n  }\n  allTimestamps.push(ts);\n}\n\nif (perRoom.size === 0) {\n  throw new Error(\"No valid rows. Check the upstream items have timestamp / room_id / temperature / humidity.\");\n}\n\nconst ALPHA = 1.0;\nconst coefficients = { temperature: {}, humidity: {} };\nconst intercepts   = { temperature: {}, humidity: {} };\nconst stats        = { temperature: {}, humidity: {} };\n\n// Also emit the in-sample fitted series so the web page can plot the Ridge\n// curve overlaid on the actual data without re-fitting client-side.\nconst series = {};\n\nfor (const [room, bucket] of perRoom.entries()) {\n  const rows = Array.from(bucket.values()).sort((a, b) => a.ts - b.ts);\n  const X = rows.map(r => buildFeatureRow(r.ts));\n  const yT = rows.map(r => r.temperature);\n  const yH = rows.map(r => r.humidity);\n\n  const rT = solveRidge(X, yT, ALPHA);\n  const rH = solveRidge(X, yH, ALPHA);\n\n  coefficients.temperature[String(room)] = rT.coefficients;\n  coefficients.humidity   [String(room)] = rH.coefficients;\n  intercepts  .temperature[String(room)] = rT.intercept;\n  intercepts  .humidity   [String(room)] = rH.intercept;\n\n  stats.temperature[String(room)] = {\n    n_samples: rows.length,\n    mae_train: Number(mae(X, yT, rT.intercept, rT.coefficients).toFixed(3)),\n  };\n  stats.humidity[String(room)] = {\n    n_samples: rows.length,\n    mae_train: Number(mae(X, yH, rH.intercept, rH.coefficients).toFixed(3)),\n  };\n\n  // Fitted values for plotting\n  const fitT = X.map(x => {\n    let s = rT.intercept;\n    for (let j = 0; j < x.length; j++) s += rT.coefficients[j] * x[j];\n    return Number(s.toFixed(3));\n  });\n  const fitH = X.map(x => {\n    let s = rH.intercept;\n    for (let j = 0; j < x.length; j++) s += rH.coefficients[j] * x[j];\n    return Number(s.toFixed(3));\n  });\n\n  series[String(room)] = {\n    timestamps:  rows.map(r => r.ts.toISOString()),\n    actual: {\n      temperature: yT.map(v => Number(v.toFixed(3))),\n      humidity:    yH.map(v => Number(v.toFixed(3))),\n    },\n    ridge: {\n      temperature: fitT,\n      humidity:    fitH,\n    },\n  };\n}\n\nallTimestamps.sort((a, b) => a - b);\n\nconst model = {\n  schema: \"ridge-fourier-v2\",\n  targets: [\"temperature\", \"humidity\"],\n  trained_at: new Date().toISOString(),\n  alpha: ALPHA,\n  feature_names: FEATURE_NAMES,\n  rooms: Array.from(perRoom.keys()).sort((a, b) => a - b),\n  coefficients,\n  intercepts,\n  data_range: {\n    start: allTimestamps[0].toISOString(),\n    end:   allTimestamps[allTimestamps.length - 1].toISOString(),\n  },\n  stats,\n  series,\n};\n\n// Persist to workflow static data so the webhook prediction path can find it.\nconst staticData = $getWorkflowStaticData(\"global\");\nstaticData.temperatureModel = model;\n\nreturn [{ json: { model } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "3533e8e0-43f7-4247-b460-405fd22b9dc1",
+      "name": "Generate Predictions",
+      "notes": "Human note: This node contains JavaScript code with added comments to explain the logic for GitHub and viva discussion.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ebdf8c5a-7a53-4988-adb2-e7660ae19d98",
+              "name": "Model ",
+              "value": "={{ $json.model }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        0
+      ],
+      "id": "dd6a753a-21fa-4ecc-b65a-1e48291cf05d",
+      "name": "Select Prediction Model",
+      "notes": "Human note: This node formats/renames fields so the next node receives clean input.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "132e98d1-ed26-4616-abbb-1e280af5d34d",
+              "name": "date",
+              "value": "={{ $('Sensor Input Webhook').first().json.body.date }}",
+              "type": "string"
+            },
+            {
+              "id": "3a13595a-e309-4545-9dfb-4d38333f5c48",
+              "name": "room_id",
+              "value": "={{ $('Sensor Input Webhook').first().json.body.room_id }}",
+              "type": "number"
+            },
+            {
+              "id": "7c16ded7-5fca-40a0-a069-ebaa4eb15b0b",
+              "name": "model",
+              "value": "={{ $('Generate Predictions').first().json.model }}",
+              "type": "object"
+            },
+            {
+              "id": "bdbbeb89-ee10-42cc-be1f-02d8c0a5619e",
+              "name": "",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        896,
+        0
+      ],
+      "id": "cfe04ff6-1638-422f-91ca-c1d46830907e",
+      "name": "Prepare Prediction Request",
+      "notes": "Human note: This node formats/renames fields so the next node receives clean input.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ============================================================================\n// HUMANIZED CODE COMMENTS — Prediction Engine\n// Workflow: Regression Prediction Workflow\n// ----------------------------------------------------------------------------\n// Purpose:\n// // This node performs the actual prediction step.\n// It reads the selected model and input date/room, then calculates the expected temperature and humidity.\n// The result is passed forward to anomaly detection and recommendations.\n//\n// Notes:\n// - This comment block was added for GitHub/readability.\n// - The original logic below was kept unchanged.\n// - n8n workflow JSON cannot use comments outside strings, so comments are placed inside Code nodes.\n// ============================================================================\n\n// ============================================================================\n// n8n Code Node — PREDICT temperature + humidity for a given date and room\n// ============================================================================\n//\n// \"Run Once for Each Item\" mode.\n//\n// INPUT item needs:\n//   json.date      ISO string  (\"2024-12-15T14:00:00+04:00\" or plain ISO)\n//   json.room_id   1, 2, or 3  (optional; defaults to first trained room)\n//\n// Model resolution order (first match wins):\n//   1. json.model                                  (passed on the item)\n//   2. $getWorkflowStaticData('global').temperatureModel\n//\n// OUTPUT item carries json.prediction = {\n//   temperature, humidity, room_id, date,\n//   model_trained_at, extrapolation_days\n// }\n// ============================================================================\n\nfunction buildFeatureRow(date) {\n  const hour = date.getUTCHours() + date.getUTCMinutes() / 60;\n  const yearStart = Date.UTC(date.getUTCFullYear(), 0, 0);\n  const doy = (date.getTime() - yearStart) / 86400000;\n  const dow = ((date.getUTCDay() + 6) % 7) + hour / 24;\n  const f = [];\n  for (const k of [1, 2, 3]) {\n    f.push(Math.sin(2 * Math.PI * k * hour / 24));\n    f.push(Math.cos(2 * Math.PI * k * hour / 24));\n  }\n  for (const k of [1, 2, 3]) {\n    f.push(Math.sin(2 * Math.PI * k * doy / 365.25));\n    f.push(Math.cos(2 * Math.PI * k * doy / 365.25));\n  }\n  for (const k of [1, 2]) {\n    f.push(Math.sin(2 * Math.PI * k * dow / 7));\n    f.push(Math.cos(2 * Math.PI * k * dow / 7));\n  }\n  return f;\n}\n\nfunction resolveModel() {\n  const item = $input.item.json;\n  if (item && item.model &&\n      (item.model.schema === \"ridge-fourier-v2\" || item.model.schema === \"ridge-fourier-v1\")) {\n    return item.model;\n  }\n  try {\n    const staticData = $getWorkflowStaticData(\"global\");\n    if (staticData && staticData.temperatureModel) return staticData.temperatureModel;\n  } catch (_) {}\n  throw new Error(\n    \"No trained model available. Run the training workflow once first \" +\n    \"(it writes the model to workflow static data).\"\n  );\n}\n\nfunction predictOne(model, target, roomKey, features) {\n  // Handle both schema versions. v2 has coefficients.{target}.{room};\n  // v1 has coefficients.{room} (temperature only).\n  let coef, intercept;\n  if (model.schema === \"ridge-fourier-v2\") {\n    coef      = model.coefficients[target][roomKey];\n    intercept = model.intercepts  [target][roomKey];\n  } else {\n    if (target !== \"temperature\") return null;\n    coef      = model.coefficients[roomKey];\n    intercept = model.intercepts  [roomKey];\n  }\n  if (!coef) return null;\n  let p = intercept;\n  for (let i = 0; i < coef.length; i++) p += coef[i] * features[i];\n  return Number(p.toFixed(3));\n}\n\n// ---------- Main ----------\nconst item = $input.item.json;\nconst model = resolveModel();\n\nif (!item.date) throw new Error(\"Missing `date` field on input item.\");\nconst target = new Date(item.date);\nif (isNaN(target.getTime())) throw new Error(`Invalid date: ${item.date}`);\n\nconst room = item.room_id != null ? +item.room_id : model.rooms[0];\nconst roomKey = String(room);\nif (!model.rooms.includes(room)) {\n  throw new Error(`Unknown room_id ${room}. Trained on: ${model.rooms.join(\", \")}`);\n}\n\nconst features = buildFeatureRow(target);\nconst temperature = predictOne(model, \"temperature\", roomKey, features);\nconst humidity    = predictOne(model, \"humidity\",    roomKey, features);\n\nconst dataEnd = new Date(model.data_range.end);\nconst daysPast = Math.max(0, (target.getTime() - dataEnd.getTime()) / 86400000);\n\nreturn {\n  json: {\n    prediction: {\n      temperature,\n      humidity,\n      room_id: room,\n      date: target.toISOString(),\n      model_trained_at: model.trained_at,\n      model_data_range: model.data_range,\n      extrapolation_days: Math.round(daysPast),\n    },\n  },\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "5a0a164e-8368-4978-a614-d5b30aa0fc48",
+      "name": "Prediction Engine",
+      "notes": "Human note: This node contains JavaScript code with added comments to explain the logic for GitHub and viva discussion.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ============================================================================\n// HUMANIZED CODE COMMENTS — Anomaly Detection Engine\n// Workflow: Regression Prediction Workflow\n// ----------------------------------------------------------------------------\n// Purpose:\n// // This node checks whether the predicted temperature or humidity is normal or abnormal.\n// It compares the reading against historical room behavior and threshold ranges.\n// The output is used by the dashboard to show Normal, High Anomaly, or Low Anomaly.\n//\n// Notes:\n// - This comment block was added for GitHub/readability.\n// - The original logic below was kept unchanged.\n// - n8n workflow JSON cannot use comments outside strings, so comments are placed inside Code nodes.\n// ============================================================================\n\nconst predictionObj = $json.prediction || $json;\n\nconst predictedTemp = Number(predictionObj.temperature);\nconst predictedHum = Number(predictionObj.humidity);\n\nconst historicalRows = $(\"Load Historical Dataset\").all();\n\nconst roomId = String(predictionObj.room_id);\nconst targetDate = new Date(predictionObj.date);\nconst targetMonth = targetDate.getMonth() + 1;\n\nlet filteredRows = historicalRows.filter(r => {\n  const rowRoom = String(r.json.room_id) === roomId;\n  const rowDate = new Date(r.json.timestamp);\n  const rowMonth = rowDate.getMonth() + 1;\n  return rowRoom && rowMonth === targetMonth;\n});\n\nif (filteredRows.length < 20) {\n  filteredRows = historicalRows.filter(r => String(r.json.room_id) === roomId);\n}\n\nconst temps = filteredRows.map(r => Number(r.json.temperature)).filter(Number.isFinite);\nconst hums = filteredRows.map(r => Number(r.json.humidity)).filter(Number.isFinite);\n\nfunction mean(arr) {\n  return arr.reduce((sum, v) => sum + v, 0) / arr.length;\n}\n\nconst tempMean = temps.length ? mean(temps) : 22;\nconst humMean = hums.length ? mean(hums) : 55;\n\n// Realistic UAE indoor monthly thresholds\nconst comfortMap = {\n  1:  { tLow: 21, tHigh: 24, hLow: 40, hHigh: 65 },\n  2:  { tLow: 21, tHigh: 24, hLow: 40, hHigh: 65 },\n  3:  { tLow: 22, tHigh: 24, hLow: 40, hHigh: 65 },\n  4:  { tLow: 22, tHigh: 25, hLow: 40, hHigh: 68 },\n  5:  { tLow: 20, tHigh: 23, hLow: 45, hHigh: 70 },\n  6:  { tLow: 19, tHigh: 22, hLow: 45, hHigh: 72 },\n  7:  { tLow: 19, tHigh: 22, hLow: 45, hHigh: 75 },\n  8:  { tLow: 19, tHigh: 22, hLow: 45, hHigh: 75 },\n  9:  { tLow: 20, tHigh: 23, hLow: 45, hHigh: 72 },\n  10: { tLow: 21, tHigh: 24, hLow: 40, hHigh: 68 },\n  11: { tLow: 21, tHigh: 24, hLow: 40, hHigh: 65 },\n  12: { tLow: 21, tHigh: 24, hLow: 40, hHigh: 65 }\n};\n\nconst c = comfortMap[targetMonth];\n\n// Small dataset adjustment only\nconst tempAdj = Math.max(-0.5, Math.min(0.5, tempMean - ((c.tLow + c.tHigh) / 2)));\nconst humAdj = Math.max(-3, Math.min(3, humMean - ((c.hLow + c.hHigh) / 2)));\n\nconst tempLower = Number((c.tLow + tempAdj).toFixed(1));\nconst tempUpper = Number((c.tHigh + tempAdj).toFixed(1));\nconst humLower = Number((c.hLow + humAdj).toFixed(1));\nconst humUpper = Number((c.hHigh + humAdj).toFixed(1));\n\nfunction classify(value, lower, upper) {\n  if (value > upper) return \"High Anomaly\";\n  if (value < lower) return \"Low Anomaly\";\n  return \"Normal\";\n}\n\nreturn {\n  json: {\n    prediction: {\n      ...predictionObj,\n\n      temperature_status: classify(predictedTemp, tempLower, tempUpper),\n      humidity_status: classify(predictedHum, humLower, humUpper),\n\n      temp_lower: tempLower,\n      temp_upper: tempUpper,\n      hum_lower: humLower,\n      hum_upper: humUpper,\n\n      temp_mean: Number(tempMean.toFixed(1)),\n      hum_mean: Number(humMean.toFixed(1)),\n\n      threshold_month: targetMonth,\n      threshold_samples: filteredRows.length,\n\n      _backendBadge: \"regression\"\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        0
+      ],
+      "id": "49a0c99a-e70f-4932-8e1a-8d954e78b328",
+      "name": "Anomaly Detection Engine",
+      "notes": "Human note: This node contains JavaScript code with added comments to explain the logic for GitHub and viva discussion.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ============================================================================\n// HUMANIZED CODE COMMENTS — Recommendation Engine\n// Workflow: Regression Prediction Workflow\n// ----------------------------------------------------------------------------\n// Purpose:\n// // This node creates the final recommendation for the user.\n// It looks at the anomaly status and suggests what action should be taken.\n// For example, if temperature is too high, it recommends cooling or checking ventilation.\n//\n// Notes:\n// - This comment block was added for GitHub/readability.\n// - The original logic below was kept unchanged.\n// - n8n workflow JSON cannot use comments outside strings, so comments are placed inside Code nodes.\n// ============================================================================\n\nconst p = $json.prediction || $json;\n\nconst tempStatus = p.temperature_status;\nconst humStatus = p.humidity_status;\n\nconst idealTemp = Number(p.temp_mean || 22).toFixed(1);\nconst idealHum = Number(p.hum_mean || 55).toFixed(1);\n\nconst tips = [];\n\nif (tempStatus === \"High Anomaly\") {\n  tips.push(`Decrease temperature toward ${idealTemp}°C to maintain a comfortable environment.`);\n} else if (tempStatus === \"Low Anomaly\") {\n  tips.push(`Increase temperature toward ${idealTemp}°C to maintain a comfortable environment.`);\n}\n\nif (humStatus === \"High Anomaly\") {\n  tips.push(`Decrease humidity toward ${idealHum}% using ventilation or dehumidification.`);\n} else if (humStatus === \"Low Anomaly\") {\n  tips.push(`Increase humidity toward ${idealHum}% to maintain indoor comfort.`);\n}\n\nif (tips.length === 0) {\n  tips.push(`Conditions are normal. Maintain temperature near ${idealTemp}°C and humidity near ${idealHum}%.`);\n}\n\nreturn {\n  json: {\n    prediction: {\n      ...p,\n      recommended_temperature: Number(idealTemp),\n      recommended_humidity: Number(idealHum),\n      recommendation: tips.join(\" \")\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        0
+      ],
+      "id": "ea742c3c-7dc4-48a7-ab05-08ca93a7d4f2",
+      "name": "Recommendation Engine",
+      "notes": "Human note: This node contains JavaScript code with added comments to explain the logic for GitHub and viva discussion.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "AgentLogs",
+          "mode": "list",
+          "cachedResultName": "AgentLogs"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "input_timestamp",
+              "value": "={{$json.prediction.date}}"
+            },
+            {
+              "column": "username",
+              "value": "admin"
+            },
+            {
+              "column": "room_id",
+              "value": "={{$json.prediction.room_id}}"
+            },
+            {
+              "column": "temperature",
+              "value": "={{$json.prediction.temperature}}"
+            },
+            {
+              "column": "humidity",
+              "value": "={{$json.prediction.humidity}}"
+            },
+            {
+              "column": "recommendation",
+              "value": "={{$json.recommendation}}"
+            },
+            {
+              "column": "recommended_temperature",
+              "value": "={{$json.recommended_temperature}}"
+            },
+            {
+              "column": "recommended_humidity",
+              "value": "={{$json.recommended_humidity}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        1760,
+        0
+      ],
+      "id": "b7776b37-a518-4627-bff5-628ce784d4f6",
+      "name": "Store Results Database",
+      "credentials": {
+        "mySql": {
+          "id": "zR4XF5tm39njrlyA",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => {\n  const p = $(\"Anomaly Detection Engine\").item.json.prediction;\n\n  let rec = \"Conditions are normal. Maintain current settings.\";\n\n  if (p.temperature_status === \"High Anomaly\") {\n    rec = `Temperature is above the normal threshold. Decrease temperature toward ${((p.temp_lower + p.temp_upper) / 2).toFixed(1)}°C.`;\n  } else if (p.temperature_status === \"Low Anomaly\") {\n    rec = `Temperature is below the normal threshold. Increase temperature toward ${((p.temp_lower + p.temp_upper) / 2).toFixed(1)}°C.`;\n  }\n\n  if (p.humidity_status === \"High Anomaly\") {\n    rec += ` Humidity is high. Use ventilation or dehumidification toward ${((p.hum_lower + p.hum_upper) / 2).toFixed(1)}%.`;\n  } else if (p.humidity_status === \"Low Anomaly\") {\n    rec += ` Humidity is low. Increase humidity toward ${((p.hum_lower + p.hum_upper) / 2).toFixed(1)}%.`;\n  }\n\n  return {\n    ...p,\n    recommendation: rec\n  };\n})() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1984,
+        0
+      ],
+      "id": "ddd5368f-70bc-4914-af44-1c5f1e4a7fa7",
+      "name": "Return API Response",
+      "notes": "Human note: This is the entry point from the frontend/dashboard. It receives POST data such as room_id and date, then starts the workflow.",
+      "notesInFlow": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Sensor Input Webhook": {
+      "main": [
+        [
+          {
+            "node": "Load Historical Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Historical Dataset": {
+      "main": [
+        [
+          {
+            "node": "Generate Predictions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Predictions": {
+      "main": [
+        [
+          {
+            "node": "Select Prediction Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Prediction Model": {
+      "main": [
+        [
+          {
+            "node": "Prepare Prediction Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prediction Request": {
+      "main": [
+        [
+          {
+            "node": "Prediction Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prediction Engine": {
+      "main": [
+        [
+          {
+            "node": "Anomaly Detection Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anomaly Detection Engine": {
+      "main": [
+        [
+          {
+            "node": "Recommendation Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recommendation Engine": {
+      "main": [
+        [
+          {
+            "node": "Store Results Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Results Database": {
+      "main": [
+        [
+          {
+            "node": "Return API Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0255c50b-c480-483a-9195-ffbe682a3827",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7dc0c2b5be7b2ccc795fd1c0fe668b337c0e1f0666720c10261c65c4e57d7b77"
+  },
+  "id": "w6ALX55xdjFjrZC7",
+  "tags": [],
+  "README_note": "This is a GitHub-ready n8n workflow for the AERIS smart building project. Humanized comments were added inside Code node JavaScript and node notes. The workflow logic was not intentionally changed."
+}
