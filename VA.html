@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1a33">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AERIS Voice">
+<title>AERIS Voice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="manifest" id="manifest">
+<style>
+:root{
+  --bg:#07142a; --bg2:#0b1d3a; --panel:#10264a; --panel2:#15305a; --line:#21406f;
+  --ink:#eaf1fb; --ink2:#a9bbd6; --ink3:#6f86a8;
+  --accent:#2fd4b5; --accent-ink:#04221c; --warn:#ffb547; --bad:#ff6b6b; --you:#2a5bd7;
+  --r:18px;
+  --font:"IBM Plex Sans","IBM Plex Sans Arabic",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(120% 70% at 50% -10%,#16346a 0%,var(--bg) 60%) fixed,var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.45}
+button,input{font:inherit;color:inherit}
+.app{max-width:520px;margin:0 auto;height:100dvh;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+
+/* header */
+header{display:flex;align-items:center;gap:12px;padding:14px 16px 10px}
+.mark{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#2a7bd7);display:grid;place-items:center;flex:none}
+.mark svg{width:22px;height:22px}
+.titles{flex:1;min-width:0}
+.titles h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px}
+.titles p{margin:0;font-size:12.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--ink2);white-space:nowrap}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--ink3)}
+.pill.live i{background:var(--accent);box-shadow:0 0 0 3px rgba(47,212,181,.18)}
+.pill.demo i{background:var(--warn)}
+.pill.err i{background:var(--bad)}
+.icon-btn{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--panel);display:grid;place-items:center;cursor:pointer;flex:none}
+.icon-btn svg{width:20px;height:20px;stroke:var(--ink2)}
+
+/* language switch */
+.toolbar{display:flex;align-items:center;justify-content:space-between;padding:0 16px 8px;gap:10px}
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px}
+.seg button{border:0;background:transparent;padding:6px 14px;border-radius:9px;cursor:pointer;font-weight:600;font-size:14px;color:var(--ink2)}
+.seg button[aria-pressed="true"]{background:var(--panel2);color:var(--ink)}
+.speak-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);cursor:pointer;user-select:none}
+.speak-toggle input{accent-color:var(--accent);width:16px;height:16px}
+
+/* conversation */
+.chat{flex:1;overflow-y:auto;padding:8px 16px 12px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+.msg{max-width:86%;padding:11px 14px;border-radius:var(--r);font-size:15.5px;word-wrap:break-word;animation:pop .18s ease-out}
+.msg.you{align-self:flex-end;background:var(--you);border-bottom-right-radius:6px}
+.msg.bot{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:6px}
+.msg.bot.err{border-color:rgba(255,107,107,.5)}
+.msg.sys{align-self:center;background:transparent;color:var(--ink3);font-size:12.5px;padding:2px 8px}
+.msg .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.tag{font-size:12.5px;padding:4px 9px;border-radius:8px;background:var(--bg2);border:1px solid var(--line);color:var(--ink2);display:inline-flex;gap:6px;align-items:center}
+.tag b{color:var(--ink);font-weight:600;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px}
+.tag.ok{border-color:rgba(47,212,181,.45)} .tag.ok::before{content:"✓";color:var(--accent);font-weight:700}
+.tag.fail{border-color:rgba(255,107,107,.5)} .tag.fail::before{content:"✕";color:var(--bad);font-weight:700}
+.tag.skip::before{content:"•";color:var(--ink3)}
+.welcome h2{font-size:15.5px;margin:0 0 4px}
+.welcome p{margin:0;color:var(--ink2);font-size:14px}
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.typing{display:inline-flex;gap:4px;padding:4px 0}
+.typing span{width:6px;height:6px;border-radius:50%;background:var(--ink3);animation:blink 1s infinite}
+.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+/* confirm */
+.confirm{display:none;margin:0 16px 8px;padding:12px;border-radius:14px;background:rgba(255,181,71,.1);border:1px solid rgba(255,181,71,.45)}
+.confirm.show{display:block}
+.confirm p{margin:0 0 10px;font-size:14px;color:#ffe2b3}
+.confirm .row{display:flex;gap:8px}
+.btn{flex:1;border:0;border-radius:12px;padding:11px;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--warn);color:#2b1a00}
+.btn.ghost{background:var(--panel);border:1px solid var(--line)}
+
+/* chips */
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:8px 13px;font-size:13.5px;cursor:pointer;color:var(--ink);white-space:nowrap}
+.chip:active{background:var(--panel2)}
+
+/* dock */
+.dock{padding:6px 16px 14px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.mic-wrap{position:relative;width:84px;height:84px}
+.mic{position:relative;z-index:1;width:84px;height:84px;border-radius:50%;border:0;cursor:pointer;background:linear-gradient(145deg,var(--accent),#1fa98f);display:grid;place-items:center;box-shadow:0 10px 30px rgba(47,212,181,.25)}
+.mic svg{width:34px;height:34px;fill:var(--accent-ink)}
+.mic:disabled{background:var(--panel2);box-shadow:none;cursor:not-allowed}
+.mic:disabled svg{fill:var(--ink3)}
+.ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--accent);opacity:0}
+.listening .ring{animation:ring 1.4s ease-out infinite}
+.listening .ring:nth-child(2){animation-delay:.45s}
+.listening .mic{background:linear-gradient(145deg,#ff8a7a,var(--bad));box-shadow:0 10px 30px rgba(255,107,107,.3)}
+@keyframes ring{from{transform:scale(1);opacity:.7}to{transform:scale(1.7);opacity:0}}
+.hint{font-size:12.5px;color:var(--ink3);text-align:center;min-height:18px}
+.input-row{display:flex;gap:8px;width:100%}
+.input-row input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;outline:none}
+.input-row input:focus{border-color:var(--accent)}
+.send{width:48px;border-radius:14px;border:0;background:var(--panel2);cursor:pointer;display:grid;place-items:center}
+.send svg{width:20px;height:20px;fill:var(--ink)}
+
+/* settings */
+dialog{border:1px solid var(--line);background:var(--bg2);color:var(--ink);border-radius:20px;padding:0;width:min(480px,calc(100% - 24px));max-height:calc(100dvh - 24px)}
+dialog::backdrop{background:rgba(2,8,20,.65);backdrop-filter:blur(3px)}
+.sheet{padding:18px}
+.sheet h3{margin:0 0 4px;font-size:18px}
+.sheet .sub{margin:0 0 14px;color:var(--ink2);font-size:13px}
+label.f{display:block;font-size:13px;font-weight:600;color:var(--ink2);margin:12px 0 6px}
+label.f + input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 12px;outline:none}
+.switch-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding:12px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.switch-row small{display:block;color:var(--ink3);font-size:12px;margin-top:2px}
+.switch-row input{accent-color:var(--accent);width:20px;height:20px;flex:none}
+.test-out{font-size:13px;margin-top:10px;min-height:18px;color:var(--ink2)}
+.note{font-size:12px;color:var(--ink3);margin-top:14px;line-height:1.5}
+.sheet .row{display:flex;gap:8px;margin-top:16px}
+.sheet .btn.primary{background:var(--accent);color:var(--accent-ink)}
+[dir="rtl"]{font-family:"IBM Plex Sans Arabic","IBM Plex Sans",system-ui,sans-serif}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#04221c" stroke-width="2.2" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg>
+    </div>
+    <div class="titles">
+      <h1>AERIS Voice</h1>
+      <p>Kitchen · Lab · Mailroom</p>
+    </div>
+    <span class="pill" id="status"><i></i><span>Not set up</span></span>
+    <button class="icon-btn" id="openSettings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="Language">
+      <button data-lang="en" aria-pressed="true">English</button>
+      <button data-lang="ar" aria-pressed="false">العربية</button>
+    </div>
+    <label class="speak-toggle"><input type="checkbox" id="speak" checked> <span id="speakLbl">Speak replies</span></label>
+  </div>
+
+  <main class="chat" id="chat" aria-live="polite"></main>
+
+  <div class="confirm" id="confirm">
+    <p id="confirmText"></p>
+    <div class="row">
+      <button class="btn primary" id="yesBtn">Yes, do it</button>
+      <button class="btn ghost" id="noBtn">No, leave it</button>
+    </div>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="dock">
+    <div class="mic-wrap" id="micWrap">
+      <span class="ring"></span><span class="ring"></span>
+      <button class="mic" id="mic" aria-label="Tap to speak">
+        <svg viewBox="0 0 24 24"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15zm6-3.5a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.9V20H8.5a1 1 0 1 0 0 2h7a1 1 0 1 0 0-2H13v-2.6a6 6 0 0 0 5-5.9z"/></svg>
+      </button>
+    </div>
+    <div class="hint" id="hint">Tap the mic and speak</div>
+    <form class="input-row" id="form" autocomplete="off">
+      <input id="text" placeholder="Or type a command…" enterkeyhint="send" aria-label="Command">
+      <button class="send" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2z"/></svg></button>
+    </form>
+  </div>
+</div>
+
+<dialog id="settings">
+  <form method="dialog" class="sheet" id="settingsForm">
+    <h3>Settings</h3>
+    <p class="sub">Connect the app to the <b>AERIS Voice Assistant</b> workflow in n8n.</p>
+    <label class="f" for="url">n8n webhook URL</label>
+    <input id="url" type="url" inputmode="url" placeholder="https://your-n8n.example.com/webhook/voice">
+    <label class="f" for="key">Access key</label>
+    <input id="key" type="password" placeholder="Same as ACCESS_KEY in the workflow">
+    <div class="switch-row">
+      <div><b>Demo mode</b><small>Simulated devices on this phone, no Home Assistant needed. Good for presentations.</small></div>
+      <input type="checkbox" id="demo">
+    </div>
+    <div class="test-out" id="testOut"></div>
+    <div class="row">
+      <button class="btn ghost" type="button" id="testBtn">Test connection</button>
+      <button class="btn primary" value="save" id="saveBtn">Save</button>
+    </div>
+    <p class="note">The microphone works in Chrome (Android, desktop) and Safari (iPhone, iPad, Mac), and only when this page is opened over <b>https://</b>. In other browsers you can still type commands. To control the building from anywhere, n8n must be reachable from the internet (n8n Cloud, or a tunnel to the university server).</p>
+  </form>
+</dialog>
+
+<script>
+/* ======================= shared assistant logic (same code as the n8n workflow) ======================= */
+const PARSE_SRC = "// ===================== AERIS Voice · Parse Command =====================\n// Turns a spoken/typed sentence (English or Arabic) into a structured command.\n// EDIT THE CONFIG BELOW: access key and Home Assistant entity IDs.\nconst CONFIG = {\n  // Must match the key saved in the AERIS Voice app (Settings). Leave \"\" to disable the check.\n  ACCESS_KEY: \"aeris-voice-2026\",\n\n  // Switchable devices. entity = Home Assistant entity_id, domain = light | switch.\n  // power = optional power sensor, occupancy = optional presence sensor for the same room.\n  DEVICES: [\n    { id: \"kitchen_light\", en: \"kitchen light\", ar: \"إضاءة المطبخ\", room: \"kitchen\", kind: \"light\",\n      entity: \"light.kitchen_light\", domain: \"light\", occupancy: \"binary_sensor.motion_kitchen_motion\" },\n    { id: \"lab_light\", en: \"lab light\", ar: \"إضاءة المختبر\", room: \"lab\", kind: \"light\",\n      entity: \"switch.lab\", domain: \"switch\", occupancy: \"binary_sensor.presence_sensor_fp2_cd17_presence_sensor_1\" },\n    { id: \"mailroom_light\", en: \"mailroom light\", ar: \"إضاءة غرفة البريد\", room: \"mailroom\", kind: \"light\",\n      entity: \"switch.mail_room\", domain: \"switch\", occupancy: \"binary_sensor.presence_sensor_fp2_185d_presence_sensor_1\" },\n    { id: \"tv\", en: \"corridor TV\", ar: \"تلفزيون الممر\", room: \"corridor\", kind: \"appliance\",\n      entity: \"switch.screen1_cooridor_plug_switch\", domain: \"switch\" },\n    // Smart plugs — check these switch names in Home Assistant (Settings → Entities) and correct them if needed.\n    { id: \"coffee\", en: \"coffee machine\", ar: \"ماكينة القهوة\", room: \"kitchen\", kind: \"appliance\",\n      entity: \"switch.coffee_machine\", domain: \"switch\", power: \"sensor.coffee_machine_energy_power\" },\n    { id: \"microwave\", en: \"microwave\", ar: \"الميكروويف\", room: \"kitchen\", kind: \"appliance\",\n      entity: \"switch.smart_plug_tasmota_1\", domain: \"switch\", power: \"sensor.smart_plug_tasmota_1_energy_power\" },\n    { id: \"water\", en: \"water dispenser\", ar: \"موزّع الماء\", room: \"kitchen\", kind: \"appliance\",\n      entity: \"switch.smart_plug_kettle\", domain: \"switch\", power: \"sensor.smart_plug_kettle_energy_power\" },\n    { id: \"kettle\", en: \"kettle\", ar: \"الغلاية\", room: \"kitchen\", kind: \"appliance\",\n      entity: \"switch.kettle\", domain: \"switch\", power: \"sensor.kettle_energy_power\" },\n    { id: \"printer\", en: \"printer\", ar: \"الطابعة\", room: \"mailroom\", kind: \"appliance\",\n      entity: \"switch.printer\", domain: \"switch\", power: \"sensor.printer_energy_power\" },\n  ],\n\n  SENSORS: {\n    temperature: \"sensor.lumi_lumi_sensor_ht_agl02_temperature\",\n    humidity: \"sensor.lumi_lumi_sensor_ht_agl02_humidity\",\n    pressure: \"sensor.lumi_lumi_sensor_ht_agl02_pressure\",\n    lab_door: \"binary_sensor.lab_open_close_door_opening\",\n  },\n  CLIMATE_SENSOR_ROOM: \"kitchen\", // the climate sensor is installed in the kitchen\n\n  ROOMS: {\n    kitchen: { en: \"kitchen\", ar: \"المطبخ\", occupancy: \"binary_sensor.motion_kitchen_motion\" },\n    lab: { en: \"lab\", ar: \"المختبر\", occupancy: \"binary_sensor.presence_sensor_fp2_cd17_presence_sensor_1\" },\n    mailroom: { en: \"mailroom\", ar: \"غرفة البريد\", occupancy: \"binary_sensor.presence_sensor_fp2_185d_presence_sensor_1\" },\n    corridor: { en: \"corridor\", ar: \"الممر\" },\n  },\n\n  // Ask before switching OFF a light or the TV while someone is detected in that room.\n  CONFIRM_WHEN_OCCUPIED: true,\n};\n\n// ---------- keyword tables (Arabic is matched after normalisation) ----------\nconst KW = {\n  devices: {\n    tv: [/\\btv\\b/, /\\btelevision\\b/, /\\bscreen\\b/, /\\bdisplay\\b/, /\\bsignage\\b/, /تلفزيون/, /تلفاز/, /شاشه/, /تي ?في/],\n    coffee: [/\\bcoffee\\b/, /قهوه/],\n    microwave: [/\\bmicro ?wave\\b/, /ميكروويف/, /مايكرويف/, /ميكرويف/],\n    water: [/\\bwater\\b/, /\\bdispenser\\b/, /\\bcooler\\b/, /موزع/, /براده/, /(^|\\s)(ال)?ماء(\\s|$)/, /مويه/],\n    kettle: [/\\bkettle\\b/, /غلايه/, /كتل/],\n    printer: [/\\bprint(er|ing)?\\b/, /طابعه/, /برنتر/],\n  },\n  fridge: [/\\bfridge\\b/, /\\brefrigerator\\b/, /ثلاجه/],\n  light: [/\\blights?\\b/, /\\blamps?\\b/, /\\blighting\\b/, /ضوء/, /اضواء/, /(^|\\s)(ال)?نور(\\s|$)/, /انوار/, /اضاءه/, /لمب/],\n  rooms: {\n    kitchen: [/\\bkitchen\\b/, /\\bpantry\\b/, /مطبخ/],\n    lab: [/\\blab\\b/, /\\blaboratory\\b/, /مختبر/, /معمل/, /(^|\\s)(ال)?لاب(\\s|$)/],\n    mailroom: [/\\bmail ?room\\b/, /\\bmail\\b/, /\\bpost ?room\\b/, /بريد/],\n    corridor: [/\\bcorridor\\b/, /\\bhall(way)?\\b/, /ممر/],\n  },\n  all: [/\\ball\\b/, /\\bevery\\b/, /\\beverything\\b/, /(^|\\s)كل(\\s|$)/, /جميع/],\n  off: [/\\boff\\b/, /\\bshut\\b/, /\\bstop\\b/, /\\bdisable\\b/, /\\bkill\\b/, /طفي/, /اطف/, /طف/, /سكر/, /وقف/, /اغلق/, /قفل/],\n  on: [/\\bon\\b/, /\\bstart\\b/, /\\benable\\b/, /\\bactivate\\b/, /شغل/, /ولع/, /تشغيل/, /افتح/],\n  commandVerb: [/\\bturn\\b/, /\\bswitch\\b/, /\\bshut\\b/, /\\bpower\\b/, /\\bstart\\b/, /\\bstop\\b/, /\\bput\\b/, /\\bkill\\b/, /\\benable\\b/, /\\bdisable\\b/,\n    /شغل/, /ولع/, /طفي/, /اطف/, /طف/, /سكر/, /وقف/, /اغلق/, /قفل/, /افتح/, /تشغيل/],\n  question: [/^(is|are|was|what|whats|how|which|does|do|can you tell|tell me|give me|check|show)\\b/, /\\?/, /^(هل|كم|ما|ماذا|شو|وش|ايش|اعطني|عطني)/],\n  temperature: [/\\btemp(erature)?\\b/, /\\bhot\\b/, /\\bcold\\b/, /\\bwarm\\b/, /\\bdegrees?\\b/, /حراره/, /برد/],\n  humidity: [/\\bhumid(ity)?\\b/, /\\bmoisture\\b/, /رطوبه/],\n  pressure: [/\\bpressure\\b/, /\\bhpa\\b/, /ضغط/],\n  power: [/\\bpower\\b/, /\\bwatts?\\b/, /\\bconsum/, /\\busing\\b/, /\\bdraw(ing)?\\b/, /\\benergy\\b/, /استهلاك/, /يستهلك/, /كهرب/, /واط/, /طاقه/],\n  occupancy: [/\\boccupied\\b/, /\\boccupancy\\b/, /\\banyone\\b/, /\\banybody\\b/, /\\bsomeone\\b/, /\\bsomebody\\b/, /\\bpeople\\b/, /\\bpresence\\b/, /\\bempty\\b/, /\\bvacant\\b/,\n    /(^|\\s)احد(\\s|$)/, /موجود/, /فاضي/, /فارغ/, /اشغال/, /ناس/],\n  door: [/\\bdoor\\b/, /باب/],\n  status: [/what'?s on\\b/, /what is on\\b/, /\\bstatus\\b/, /\\boverview\\b/, /\\bsummary\\b/, /what is running/, /what'?s running/, /left on/,\n    /الوضع/, /حاله/, /ملخص/, /شو شغال/, /ايش شغال/, /وش شغال/, /ماذا يعمل/, /ما الذي يعمل/, /ما اللي شغال/, /شو في شغال/, /ما هو الشغال/],\n  help: [/\\bhelp\\b/, /what can you do/, /\\bcommands\\b/, /مساعده/, /ماذا تستطيع/, /شو تقدر/],\n  yes: [/^(yes|yeah|yep|sure|confirm|ok|okay|do it|go ahead)\\b/, /^(نعم|ايوه|اي|اكيد|موافق|تمام|طيب)/],\n  no: [/^(no|nope|cancel|stop|never ?mind)\\b/, /^(لا|الغ|الغاء|خلاص)/],\n};\n\nfunction normalize(t) {\n  return String(t || \"\")\n    .toLowerCase()\n    .replace(/[ً-ْـ]/g, \"\")          // Arabic diacritics + tatweel\n    .replace(/[أإآ]/g, \"ا\").replace(/ة/g, \"ه\").replace(/ى/g, \"ي\").replace(/ؤ/g, \"و\").replace(/ئ/g, \"ي\")\n    .replace(/[’`]/g, \"'\").replace(/[^\\p{L}\\p{N}'?\\s]/gu, \" \")\n    .replace(/\\s+/g, \" \").trim();\n}\nconst any = (list, t) => list.some(re => re.test(t));\n\n// ---------- request ----------\nconst req = $input.first().json;\nconst body = req.body || {};\nconst headers = req.headers || {};\nconst rawText = String(body.text ?? body.command ?? body.q ?? \"\").trim();\nconst confirm = body.confirm === true || body.confirm === \"true\";\nconst key = String(body.key ?? headers[\"x-aeris-key\"] ?? \"\");\nconst lang = /[؀-ۿ]/.test(rawText) || body.lang === \"ar\" ? \"ar\" : \"en\";\n\nconst base = { config: CONFIG, text: rawText, lang, confirm };\n\nif (CONFIG.ACCESS_KEY && key !== CONFIG.ACCESS_KEY) {\n  return [{ json: { ...base, ok: false, intent: \"auth\", status_code: 401 } }];\n}\nif (!rawText) {\n  return [{ json: { ...base, ok: false, intent: \"empty\", status_code: 400 } }];\n}\n\nconst t = normalize(rawText);\n\n// ---------- help ----------\nif (any(KW.help, t)) return [{ json: { ...base, ok: true, intent: \"help\" } }];\n\n// ---------- which devices / rooms are mentioned ----------\nconst mentionedRooms = Object.keys(KW.rooms).filter(r => any(KW.rooms[r], t));\nconst mentionedDevices = Object.keys(KW.devices).filter(d => any(KW.devices[d], t));\nconst saysLight = any(KW.light, t);\nconst saysAll = any(KW.all, t);\nconst fridge = any(KW.fridge, t);\n\nconst isCommand = any(KW.commandVerb, t) && !/^(is|are)\\b/.test(t);\nconst wantsOff = any(KW.off, t);\nconst wantsOn = any(KW.on, t) && !wantsOff;\n\n// ---------- status overview ----------\nif (any(KW.status, t) && !isCommand) return [{ json: { ...base, ok: true, intent: \"status\" } }];\n\n// ---------- control ----------\nif (isCommand && (wantsOn || wantsOff)) {\n  if (fridge) return [{ json: { ...base, ok: true, intent: \"refuse_fridge\" } }];\n  const action = wantsOff ? \"off\" : \"on\";\n  let devices = [...mentionedDevices];\n  if (saysLight || (!devices.length && mentionedRooms.length)) {\n    const lightRooms = mentionedRooms.filter(r => r !== \"corridor\");\n    if (lightRooms.length) devices.push(...lightRooms.map(r => `${r}_light`));\n    else if (saysAll || !saysLight) devices.push(\"kitchen_light\", \"lab_light\", \"mailroom_light\");\n    else return [{ json: { ...base, ok: true, intent: \"clarify_room\", action } }];\n  }\n  if (!devices.length && saysAll) devices = CONFIG.DEVICES.filter(d => d.id !== \"water\").map(d => d.id);\n  devices = [...new Set(devices)].filter(id => CONFIG.DEVICES.some(d => d.id === id));\n  if (!devices.length) return [{ json: { ...base, ok: true, intent: \"clarify_device\", action } }];\n  return [{ json: { ...base, ok: true, intent: \"control\", action, devices } }];\n}\n\n// ---------- readings ----------\nconst readings = [];\nconst roomFor = mentionedRooms[0] || null;\nif (any(KW.temperature, t)) readings.push({ type: \"temperature\", room: roomFor });\nif (any(KW.humidity, t)) readings.push({ type: \"humidity\", room: roomFor });\nif (any(KW.pressure, t)) readings.push({ type: \"pressure\" });\nif (any(KW.door, t)) readings.push({ type: \"door\" });\nif (any(KW.occupancy, t)) {\n  const rooms = mentionedRooms.filter(r => CONFIG.ROOMS[r] && CONFIG.ROOMS[r].occupancy);\n  readings.push({ type: \"occupancy\", rooms: rooms.length ? rooms : [\"kitchen\", \"lab\", \"mailroom\"] });\n}\nif (any(KW.power, t)) {\n  const devs = mentionedDevices.length ? mentionedDevices : CONFIG.DEVICES.filter(d => d.power).map(d => d.id);\n  readings.push({ type: \"power\", devices: devs });\n}\n// \"Is the TV on?\" / \"Is the lab light on?\"\nif (!readings.length && (mentionedDevices.length || saysLight)) {\n  let devs = [...mentionedDevices];\n  if (saysLight) {\n    const lr = mentionedRooms.filter(r => r !== \"corridor\");\n    devs.push(...(lr.length ? lr : [\"kitchen\", \"lab\", \"mailroom\"]).map(r => `${r}_light`));\n  }\n  readings.push({ type: \"state\", devices: [...new Set(devs)] });\n}\nif (readings.length) return [{ json: { ...base, ok: true, intent: \"reading\", readings } }];\n\n// bare \"yes\"/\"no\" without a pending question\nif (any(KW.yes, t) || any(KW.no, t)) return [{ json: { ...base, ok: true, intent: \"nothing_pending\" } }];\n\nreturn [{ json: { ...base, ok: true, intent: \"unknown\" } }];\n";
+const DECIDE_SRC = "// ===================== AERIS Voice · Decide & Reply =====================\n// Uses the parsed command + all Home Assistant states to decide what to switch\n// and what to say back. Service calls are executed by the next node.\nconst P = $(\"Parse Command\").first().json;\nconst C = P.config;\nconst ar = P.lang === \"ar\";\n\n// ---------- Home Assistant states ----------\nconst states = {};\nlet haError = null;\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  if (j.entity_id) states[j.entity_id] = j;\n  else if (j.error) haError = j.error.message || String(j.error);\n}\nconst haReachable = Object.keys(states).length > 0;\n\nconst dev = (id) => C.DEVICES.find(d => d.id === id);\nconst st = (entity) => (entity && states[entity]) ? states[entity] : null;\nconst isOn = (s) => s && [\"on\", \"open\", \"true\", \"home\", \"detected\", \"occupied\"].includes(String(s.state).toLowerCase());\nconst unavailable = (s) => !s || [\"unavailable\", \"unknown\", \"none\", \"\"].includes(String(s.state).toLowerCase());\nconst num = (s) => { const v = s ? Number(s.state) : NaN; return Number.isFinite(v) ? v : null; };\nconst unit = (s, fallback) => (s && s.attributes && s.attributes.unit_of_measurement) || fallback;\nconst fmt = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toString();\nconst name = (d) => (ar ? d.ar : d.en);\nconst roomName = (r) => (C.ROOMS[r] ? (ar ? C.ROOMS[r].ar : C.ROOMS[r].en) : r);\nconst cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);\nconst join = (arr) => {\n  if (ar) return arr.join(\"، \");\n  return arr.length <= 1 ? arr.join(\"\") : arr.slice(0, -1).join(\", \") + \" and \" + arr[arr.length - 1];\n};\n\nconst out = { ok: true, lang: P.lang, intent: P.intent, text: P.text, reply: \"\", actions: [], readings: [], needs_confirm: false, status_code: 200 };\nconst calls = [];\n\nfunction say(en, arText) { out.reply = ar ? arText : en; }\n\n// ---------- simple intents ----------\nif (P.intent === \"auth\") {\n  out.ok = false; out.status_code = 401;\n  say(\"Access denied: the access key in the app does not match the workflow.\", \"رمز الدخول غير صحيح. تحقّق من الإعدادات في التطبيق.\");\n} else if (P.intent === \"empty\") {\n  out.ok = false; out.status_code = 400;\n  say(\"I didn't hear anything. Try again.\", \"لم أسمع شيئاً. حاول مرة أخرى.\");\n} else if (P.intent === \"help\") {\n  say('You can say: \"turn off the lab light\", \"switch on the corridor TV\", \"what is the temperature?\", \"is anyone in the mailroom?\", \"how much power is the printer using?\" or \"what\\'s on right now?\"',\n      'يمكنك أن تقول: \"أطفئ إضاءة المختبر\"، \"شغّل تلفزيون الممر\"، \"كم درجة الحرارة؟\"، \"هل يوجد أحد في غرفة البريد؟\" أو \"ما الذي يعمل الآن؟\"');\n} else if (P.intent === \"refuse_fridge\") {\n  say(\"For safety, the fridge can't be switched by voice.\", \"حفاظاً على السلامة، لا يمكن التحكم بالثلاجة صوتياً.\");\n} else if (P.intent === \"clarify_room\") {\n  say(\"Which lights: kitchen, lab or mailroom? You can also say \\\"all lights\\\".\", \"أي إضاءة: المطبخ أم المختبر أم غرفة البريد؟ أو قل \\\"كل الإضاءة\\\".\");\n} else if (P.intent === \"clarify_device\") {\n  say(\"Which device? For example the lab light, the corridor TV, the coffee machine or the printer.\", \"أي جهاز؟ مثلاً إضاءة المختبر، تلفزيون الممر، ماكينة القهوة أو الطابعة.\");\n} else if (P.intent === \"nothing_pending\") {\n  say(\"There's nothing waiting for confirmation. What would you like to do?\", \"لا يوجد طلب بانتظار التأكيد. ماذا تريد أن تفعل؟\");\n} else if (P.intent === \"unknown\") {\n  say('Sorry, I didn\\'t get that. Try \"turn off the lab light\" or \"what is the humidity?\"', 'لم أفهم الطلب. جرّب مثلاً: \"أطفئ إضاءة المختبر\" أو \"كم الرطوبة؟\"');\n} else if (!haReachable) {\n  out.ok = false; out.status_code = 502;\n  say(\"I can't reach Home Assistant right now. Check that it is online and that n8n can connect to it.\", \"لا أستطيع الاتصال بـ Home Assistant حالياً. تأكّد أنه متصل.\");\n  out.error = haError;\n\n// ---------- control ----------\n} else if (P.intent === \"control\") {\n  const action = P.action;\n  const done = [], already = [], missing = [], blocked = [], occupiedRooms = new Set();\n  for (const id of P.devices) {\n    const d = dev(id);\n    const s = st(d.entity);\n    if (!s) { missing.push(d); continue; }\n    if (unavailable(s)) { blocked.push(d); continue; }\n    const on = isOn(s);\n    if ((action === \"on\" && on) || (action === \"off\" && !on)) { already.push(d); continue; }\n    if (action === \"off\" && C.CONFIRM_WHEN_OCCUPIED && !P.confirm && (d.kind === \"light\" || d.id === \"tv\")) {\n      const occ = st(d.occupancy || (C.ROOMS[d.room] && C.ROOMS[d.room].occupancy));\n      if (occ && isOn(occ)) { occupiedRooms.add(d.room); out.needs_confirm = true; out.pending_devices = (out.pending_devices || []).concat(d.id); continue; }\n    }\n    calls.push({ device: d, domain: d.domain, service: action === \"on\" ? \"turn_on\" : \"turn_off\", entity_id: d.entity });\n    done.push(d);\n  }\n  const parts = [];\n  if (done.length) parts.push(ar ? `تم ${action === \"on\" ? \"تشغيل\" : \"إطفاء\"} ${join(done.map(name))}.` : `${cap(join(done.map(name)))} turned ${action}.`);\n  if (already.length) parts.push(ar ? `${join(already.map(name))} ${action === \"on\" ? \"يعمل\" : \"مطفأ\"} بالفعل.` : `${cap(join(already.map(name)))} ${already.length > 1 ? \"are\" : \"is\"} already ${action}.`);\n  if (blocked.length) parts.push(ar ? `${join(blocked.map(name))} غير متاح حالياً.` : `${cap(join(blocked.map(name)))} ${blocked.length > 1 ? \"are\" : \"is\"} unavailable right now.`);\n  if (missing.length) parts.push(ar ? `لم أجد ${join(missing.map(name))} في Home Assistant.` : `I can't find the ${join(missing.map(name))} in Home Assistant (check its entity ID in the workflow settings).`);\n  if (out.needs_confirm) {\n    const rooms = join([...occupiedRooms].map(roomName));\n    const devs = join(out.pending_devices.map(id => name(dev(id))));\n    parts.push(ar ? `يوجد شخص في ${rooms} الآن. هل تريد إطفاء ${devs} على أي حال؟` : `Someone is in the ${rooms} right now. Turn off the ${devs} anyway?`);\n    out.confirm_text = P.text;\n  }\n  out.reply = parts.join(\" \");\n  out.actions = [...done.map(d => ({ device: d.en, entity_id: d.entity, service: action === \"on\" ? \"turn_on\" : \"turn_off\", result: \"pending\" })),\n    ...already.map(d => ({ device: d.en, entity_id: d.entity, result: `already ${action}` })),\n    ...blocked.map(d => ({ device: d.en, entity_id: d.entity, result: \"unavailable\" })),\n    ...missing.map(d => ({ device: d.en, entity_id: d.entity, result: \"not found\" }))];\n\n// ---------- readings ----------\n} else if (P.intent === \"reading\") {\n  const parts = [];\n  for (const r of P.readings) {\n    if (r.type === \"temperature\" || r.type === \"humidity\" || r.type === \"pressure\") {\n      const s = st(C.SENSORS[r.type]);\n      const v = num(s);\n      const label = { temperature: [\"temperature\", \"درجة الحرارة\"], humidity: [\"humidity\", \"الرطوبة\"], pressure: [\"air pressure\", \"الضغط الجوي\"] }[r.type];\n      const u = r.type === \"temperature\" ? \"°C\" : r.type === \"humidity\" ? \"%\" : unit(s, \"hPa\");\n      if (v === null) { parts.push(ar ? `قراءة ${label[1]} غير متاحة حالياً.` : `The ${label[0]} reading is unavailable right now.`); continue; }\n      out.readings.push({ type: r.type, value: Number(fmt(v)), unit: u, entity_id: C.SENSORS[r.type] });\n      const proxy = r.room && r.room !== C.CLIMATE_SENSOR_ROOM;\n      const spokenUnit = ar ? { \"°C\": \"درجة مئوية\", \"%\": \"بالمئة\" }[u] || u : { \"°C\": \"degrees Celsius\", \"%\": \"percent\" }[u] || u;\n      if (ar) parts.push(`${label[1]} ${fmt(v)} ${spokenUnit}${proxy ? ` (حسب حسّاس ${roomName(C.CLIMATE_SENSOR_ROOM)}، لأن ${roomName(r.room)} لا يحتوي على حسّاس خاص)` : \"\"}.`);\n      else parts.push(`The ${label[0]} is ${fmt(v)} ${spokenUnit}${proxy ? ` (from the ${roomName(C.CLIMATE_SENSOR_ROOM)} sensor; the ${roomName(r.room)} has no climate sensor of its own)` : \"\"}.`);\n    } else if (r.type === \"door\") {\n      const s = st(C.SENSORS.lab_door);\n      if (unavailable(s)) { parts.push(ar ? \"حسّاس باب المختبر غير متاح.\" : \"The lab door sensor is unavailable.\"); continue; }\n      out.readings.push({ type: \"door\", value: isOn(s) ? \"open\" : \"closed\", entity_id: C.SENSORS.lab_door });\n      parts.push(ar ? `باب المختبر ${isOn(s) ? \"مفتوح\" : \"مغلق\"}.` : `The lab door is ${isOn(s) ? \"open\" : \"closed\"}.`);\n    } else if (r.type === \"occupancy\") {\n      const occ = [], empty = [], na = [];\n      for (const room of r.rooms) {\n        const s = st(C.ROOMS[room] && C.ROOMS[room].occupancy);\n        if (unavailable(s)) na.push(room); else (isOn(s) ? occ : empty).push(room);\n        if (!unavailable(s)) out.readings.push({ type: \"occupancy\", room, value: isOn(s) ? \"occupied\" : \"empty\" });\n      }\n      if (occ.length) parts.push(ar ? `يوجد أشخاص في ${join(occ.map(roomName))}.` : `Someone is in the ${join(occ.map(roomName))}.`);\n      if (empty.length) parts.push(ar ? `لا يوجد أحد في ${join(empty.map(roomName))}.` :`The ${join(empty.map(roomName))} ${empty.length > 1 ? \"are\" : \"is\"} empty.`);\n      if (na.length) parts.push(ar ? `حسّاس الحضور في ${join(na.map(roomName))} غير متاح.` : `The presence sensor in the ${join(na.map(roomName))} is unavailable.`);\n    } else if (r.type === \"power\") {\n      const items = [];\n      for (const id of r.devices) {\n        const d = dev(id);\n        if (!d) continue;\n        const ps = st(d.power), v = num(ps);\n        if (v === null) {\n          const s = st(d.entity);\n          if (r.devices.length === 1) items.push(ar ? `لا يوجد قياس طاقة لـ ${name(d)}${s && !unavailable(s) ? `، وهو ${isOn(s) ? \"يعمل\" : \"مطفأ\"}` : \"\"}` : `there's no power reading for the ${name(d)}${s && !unavailable(s) ? `; it is ${isOn(s) ? \"on\" : \"off\"}` : \"\"}`);\n          continue;\n        }\n        out.readings.push({ type: \"power\", device: d.en, value: Number(fmt(v)), unit: \"W\", entity_id: d.power });\n        const w = v < 10 ? fmt(v, 1) : fmt(v, 0);\n        items.push(ar ? `${name(d)} ${w} واط` : `the ${name(d)} is using ${w} ${w === \"1\" ? \"watt\" : \"watts\"}`);\n      }\n      if (items.length) parts.push(ar ? `استهلاك الطاقة: ${join(items)}.` : cap(join(items)) + \".\");\n      else parts.push(ar ? \"قراءات الطاقة غير متاحة حالياً.\" : \"No power readings are available right now.\");\n    } else if (r.type === \"state\") {\n      const on = [], off = [], na = [];\n      for (const id of r.devices) {\n        const d = dev(id); if (!d) continue;\n        const s = st(d.entity);\n        if (unavailable(s)) na.push(d); else (isOn(s) ? on : off).push(d);\n        if (!unavailable(s)) out.readings.push({ type: \"state\", device: d.en, value: isOn(s) ? \"on\" : \"off\", entity_id: d.entity });\n      }\n      if (on.length) parts.push(ar ? `${join(on.map(name))} ${on.length > 1 ? \"تعمل\" : \"يعمل\"}.` : `${cap(join(on.map(name)))} ${on.length > 1 ? \"are\" : \"is\"} on.`);\n      if (off.length) parts.push(ar ? `${join(off.map(name))} ${off.length > 1 ? \"مطفأة\" : \"مطفأ\"}.` : `${cap(join(off.map(name)))} ${off.length > 1 ? \"are\" : \"is\"} off.`);\n      if (na.length) parts.push(ar ? `${join(na.map(name))} غير متاح.` : `${cap(join(na.map(name)))} ${na.length > 1 ? \"are\" : \"is\"} unavailable.`);\n    }\n  }\n  out.reply = parts.join(\" \");\n\n// ---------- status overview ----------\n} else if (P.intent === \"status\") {\n  const onList = [];\n  for (const d of C.DEVICES) {\n    const s = st(d.entity);\n    if (!s || unavailable(s) || !isOn(s)) continue;\n    const v = num(st(d.power));\n    onList.push(v !== null ? (ar ? `${name(d)} (${fmt(v, 0)} واط)` : `${name(d)} (${fmt(v, 0)} W)`) : name(d));\n    out.readings.push({ type: \"state\", device: d.en, value: \"on\", power_w: v });\n  }\n  const tv = num(st(C.SENSORS.temperature)), hv = num(st(C.SENSORS.humidity));\n  const occupied = Object.keys(C.ROOMS).filter(r => { const s = st(C.ROOMS[r].occupancy); return s && isOn(s); });\n  const parts = [];\n  parts.push(onList.length ? (ar ? `يعمل الآن: ${join(onList)}.` : `On right now: ${join(onList)}.`) : (ar ? \"كل الأجهزة مطفأة.\" : \"Everything is off.\"));\n  if (tv !== null || hv !== null) parts.push(ar ? `الحرارة ${tv !== null ? fmt(tv) + \" درجة\" : \"غير متاحة\"}، والرطوبة ${hv !== null ? fmt(hv) + \"%\" : \"غير متاحة\"}.` : `Temperature ${tv !== null ? fmt(tv) + \" °C\" : \"n/a\"}, humidity ${hv !== null ? fmt(hv) + \" %\" : \"n/a\"}.`);\n  parts.push(occupied.length ? (ar ? `يوجد أشخاص في ${join(occupied.map(roomName))}.` : `People detected in the ${join(occupied.map(roomName))}.`) : (ar ? \"لا يوجد أحد في الغرف.\" : \"No one is detected in the rooms.\"));\n  out.reply = parts.join(\" \");\n}\n\nif (!calls.length) return [{ json: { ...out, call: false } }];\nreturn calls.map(c => ({ json: { ...out, call: true, domain: c.domain, service: c.service, entity_id: c.entity_id, device_id: c.device.id } }));\n";
+
+/* ======================= app state ======================= */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("aeris." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("aeris." + k, JSON.stringify(v)); } catch (e) {} },
+};
+const S = {
+  url: store.get("url", ""),
+  key: store.get("key", ""),
+  demo: store.get("demo", false),
+  lang: store.get("lang", "en"),
+  speak: store.get("speak", true),
+  pending: null,     // text waiting for confirmation
+  busy: false,
+};
+const $id = (id) => document.getElementById(id);
+const chat = $id("chat");
+
+const T = {
+  en: {
+    hint: "Tap the mic and speak", listening: "Listening…", noMic: "Voice input isn't available in this browser. Type instead.",
+    insecure: "The mic needs https://. Type commands, or host this page over https.",
+    placeholder: "Or type a command…", speak: "Speak replies", yes: "Yes, do it", no: "No, leave it",
+    welcomeT: "Hi, I'm AERIS.", welcomeP: "Ask me to switch the lights, TV or plugs on and off, or for a reading like temperature, humidity, power or who is in a room.",
+    chips: ["What's on right now?", "What's the temperature?", "What's the humidity?", "Is anyone in the lab?", "Turn off the lab light", "Turn off the corridor TV", "Turn on the coffee machine", "How much power is the water dispenser using?"],
+    setup: "Open Settings to add your n8n webhook URL, or switch on Demo mode.",
+    cancelled: "Okay, I left it as it is.", heard: "Heard", confirmQ: "Waiting for your answer. Tap below, or just say \"yes\" or \"no\".",
+    netErr: "I couldn't reach n8n. Check the webhook URL, that the workflow is active, and that n8n is reachable from this phone.",
+    timeout: "n8n took too long to answer. Try again.",
+  },
+  ar: {
+    hint: "اضغط على الميكروفون وتحدّث", listening: "أستمع…", noMic: "الإدخال الصوتي غير متاح في هذا المتصفح. اكتب الأمر بدلاً من ذلك.",
+    insecure: "الميكروفون يحتاج إلى https://. يمكنك كتابة الأوامر.",
+    placeholder: "أو اكتب أمراً…", speak: "قراءة الردود", yes: "نعم، نفّذ", no: "لا، اتركه",
+    welcomeT: "مرحباً، أنا AERIS.", welcomeP: "اطلب مني تشغيل أو إطفاء الإضاءة أو التلفزيون أو المقابس، أو اسألني عن الحرارة والرطوبة والطاقة ومن يوجد في الغرف.",
+    chips: ["ما الذي يعمل الآن؟", "كم درجة الحرارة؟", "كم الرطوبة؟", "هل يوجد أحد في المختبر؟", "أطفئ إضاءة المختبر", "أطفئ تلفزيون الممر", "شغّل ماكينة القهوة"],
+    setup: "افتح الإعدادات لإضافة رابط n8n أو فعّل وضع العرض.",
+    cancelled: "حسناً، تركته كما هو.", heard: "سمعت", confirmQ: "بانتظار ردّك. اضغط أدناه أو قل \"نعم\" أو \"لا\".",
+    netErr: "تعذّر الاتصال بـ n8n. تحقّق من الرابط وأن سير العمل مفعّل.",
+    timeout: "استغرق n8n وقتاً طويلاً. حاول مرة أخرى.",
+  },
+};
+const tr = (k) => T[S.lang][k];
+
+/* ======================= UI helpers ======================= */
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function scrollDown() { requestAnimationFrame(() => { chat.scrollTop = chat.scrollHeight; }); }
+function addMsg(kind, text) { const m = el("div", "msg " + kind); m.dir = "auto"; m.textContent = text; chat.appendChild(m); scrollDown(); return m; }
+function addTyping() { const m = el("div", "msg bot"); m.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>'; chat.appendChild(m); scrollDown(); return m; }
+
+function renderBot(holder, res) {
+  holder.textContent = "";
+  holder.dir = "auto";
+  holder.classList.toggle("err", res.ok === false);
+  holder.appendChild(document.createTextNode(res.reply || "…"));
+  const meta = el("div", "meta");
+  for (const a of res.actions || []) {
+    const cls = a.result === "done" ? "ok" : a.result === "failed" || a.result === "not found" ? "fail" : "skip";
+    const t = el("span", "tag " + cls); t.dir = "ltr";
+    t.append(a.device + " ");
+    const b = el("b", null, a.result === "done" ? (a.service || "").replace("turn_", "") : a.result);
+    t.appendChild(b); meta.appendChild(t);
+  }
+  for (const r of res.readings || []) {
+    const t = el("span", "tag"); t.dir = "ltr";
+    let label = r.type, val = r.value;
+    if (r.type === "temperature" || r.type === "humidity" || r.type === "pressure") val = `${r.value} ${r.unit || ""}`;
+    else if (r.type === "power") { label = r.device; val = `${r.value} W`; }
+    else if (r.type === "occupancy") { label = r.room; }
+    else if (r.type === "state") { label = r.device; val = r.power_w != null ? `on · ${Math.round(r.power_w)} W` : r.value; }
+    else if (r.type === "door") label = "lab door";
+    t.append(label + " "); t.appendChild(el("b", null, String(val))); meta.appendChild(t);
+  }
+  if (meta.childNodes.length) holder.appendChild(meta);
+  scrollDown();
+}
+
+function setStatus() {
+  const p = $id("status"); p.className = "pill";
+  let txt;
+  if (S.demo) { p.classList.add("demo"); txt = "Demo"; }
+  else if (S.url) { p.classList.add("live"); txt = "Live"; }
+  else { txt = "Not set up"; }
+  p.querySelector("span").textContent = txt;
+}
+function setLang(lang) {
+  S.lang = lang; store.set("lang", lang);
+  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+  document.documentElement.lang = lang;
+  $id("text").placeholder = tr("placeholder");
+  $id("text").dir = lang === "ar" ? "rtl" : "ltr";
+  $id("speakLbl").textContent = tr("speak");
+  $id("yesBtn").textContent = tr("yes"); $id("noBtn").textContent = tr("no");
+  if (!S.listening) $id("hint").textContent = micHint();
+  const chips = $id("chips"); chips.innerHTML = "";
+  for (const c of tr("chips")) { const b = el("button", "chip", c); b.dir = "auto"; b.onclick = () => send(c); chips.appendChild(b); }
+  if (recog) recog.lang = lang === "ar" ? "ar-AE" : "en-US";
+}
+function welcome() {
+  const m = el("div", "msg bot welcome"); m.dir = "auto";
+  m.appendChild(el("h2", null, tr("welcomeT"))); m.appendChild(el("p", null, tr("welcomeP")));
+  chat.appendChild(m);
+  if (!S.url && !S.demo) addMsg("sys", tr("setup"));
+}
+
+/* ======================= speech out ======================= */
+function speak(text, lang) {
+  if (!S.speak || !("speechSynthesis" in window) || !text) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const want = lang === "ar" ? "ar" : "en";
+    const voices = speechSynthesis.getVoices();
+    const v = voices.find(v => v.lang && v.lang.toLowerCase().startsWith(want) && /google|natural|premium|enhanced/i.test(v.name)) || voices.find(v => v.lang && v.lang.toLowerCase().startsWith(want));
+    if (v) u.voice = v;
+    u.lang = lang === "ar" ? "ar-SA" : "en-GB";
+    u.rate = 1.02;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+/* ======================= speech in ======================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recog = null;
+S.listening = false;
+function micHint() {
+  if (!window.isSecureContext) return tr("insecure");
+  if (!SR) return tr("noMic");
+  return tr("hint");
+}
+if (SR && window.isSecureContext) {
+  recog = new SR();
+  recog.interimResults = true; recog.continuous = false; recog.maxAlternatives = 1;
+  let finalText = "";
+  recog.onstart = () => { S.listening = true; finalText = ""; $id("micWrap").classList.add("listening"); $id("hint").textContent = tr("listening"); };
+  recog.onresult = (e) => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finalText += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+    }
+    $id("text").value = (finalText + interim).trim();
+  };
+  recog.onerror = (e) => { if (e.error !== "no-speech" && e.error !== "aborted") $id("hint").textContent = "Mic: " + e.error; };
+  recog.onend = () => {
+    S.listening = false; $id("micWrap").classList.remove("listening");
+    $id("hint").textContent = micHint();
+    const said = ($id("text").value || "").trim();
+    if (said) { $id("text").value = ""; send(said); }
+  };
+} else {
+  $id("mic").disabled = true;
+}
+$id("mic").addEventListener("click", () => {
+  if (!recog) return;
+  try { speechSynthesis && speechSynthesis.cancel(); } catch (e) {}
+  if (S.listening) recog.stop(); else { $id("text").value = ""; recog.lang = S.lang === "ar" ? "ar-AE" : "en-US"; recog.start(); }
+});
+
+/* ======================= transport ======================= */
+async function callLive(payload) {
+  const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const r = await fetch(S.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: ctrl.signal });
+    const txt = await r.text();
+    let j; try { j = JSON.parse(txt); } catch (e) { throw new Error(r.ok ? "n8n answered, but not with JSON. Is the 'Reply to App' node connected?" : `n8n returned HTTP ${r.status}. Is the workflow active?`); }
+    return j;
+  } catch (e) {
+    if (e.name === "AbortError") throw new Error(tr("timeout"));
+    if (e instanceof TypeError) throw new Error(tr("netErr"));
+    throw e;
+  } finally { clearTimeout(timer); }
+}
+
+/* demo mode: runs the same Parse + Decide code as n8n, against simulated Home Assistant states */
+const sim = (() => {
+  const st = {
+    "light.kitchen_light": "on", "switch.lab": "on", "switch.mail_room": "off", "switch.screen1_cooridor_plug_switch": "on",
+    "switch.coffee_machine": "off", "switch.smart_plug_tasmota_1": "off", "switch.smart_plug_kettle": "on", "switch.kettle": "off", "switch.printer": "on",
+    "binary_sensor.motion_kitchen_motion": "off", "binary_sensor.presence_sensor_fp2_cd17_presence_sensor_1": "on",
+    "binary_sensor.presence_sensor_fp2_185d_presence_sensor_1": "off", "binary_sensor.lab_open_close_door_opening": "off",
+  };
+  const powerOn = { coffee_machine: 1350, smart_plug_tasmota_1: 1100, smart_plug_kettle: 5.2, kettle: 1900, printer: 14.5 };
+  const powerOff = { printer: 2.1 };
+  function states() {
+    const out = Object.entries(st).map(([entity_id, state]) => ({ json: { entity_id, state, attributes: {} } }));
+    for (const k of Object.keys(powerOn)) {
+      const on = st["switch." + k] === "on";
+      const base = on ? powerOn[k] : (powerOff[k] || 0);
+      const v = base ? base * (0.95 + Math.random() * 0.1) : 0;
+      out.push({ json: { entity_id: `sensor.${k}_energy_power`, state: v.toFixed(1), attributes: { unit_of_measurement: "W" } } });
+    }
+    const h = new Date().getHours() + new Date().getMinutes() / 60;
+    out.push({ json: { entity_id: "sensor.lumi_lumi_sensor_ht_agl02_temperature", state: (23.6 + 1.2 * Math.sin((h - 9) / 24 * 2 * Math.PI) + Math.random() * 0.2).toFixed(2), attributes: { unit_of_measurement: "°C" } } });
+    out.push({ json: { entity_id: "sensor.lumi_lumi_sensor_ht_agl02_humidity", state: (47 + Math.random() * 3).toFixed(1), attributes: { unit_of_measurement: "%" } } });
+    out.push({ json: { entity_id: "sensor.lumi_lumi_sensor_ht_agl02_pressure", state: (1011 + Math.random()).toFixed(1), attributes: { unit_of_measurement: "hPa" } } });
+    return out;
+  }
+  return { st, states };
+})();
+const parseFn = new Function("$input", "$", PARSE_SRC.replace(/ACCESS_KEY:\s*"[^"]*"/, 'ACCESS_KEY: ""'));
+const decideFn = new Function("$input", "$", DECIDE_SRC);
+async function callDemo(payload) {
+  await new Promise(r => setTimeout(r, 350 + Math.random() * 300));
+  const one = (items) => ({ first: () => items[0], all: () => items });
+  const parsed = parseFn(one([{ json: { body: payload, headers: {} } }]), () => one([]));
+  const decided = decideFn(one(sim.states()), (n) => one(parsed));
+  const d0 = decided[0].json;
+  for (const it of decided) if (it.json.call) sim.st[it.json.entity_id] = it.json.service === "turn_on" ? "on" : "off";
+  return { ok: d0.ok !== false, reply: d0.reply, lang: d0.lang, intent: d0.intent, heard: d0.text,
+    actions: (d0.actions || []).map(a => a.result === "pending" ? { ...a, result: "done" } : a),
+    readings: d0.readings || [], needs_confirm: !!d0.needs_confirm, confirm_text: d0.confirm_text || null };
+}
+
+/* ======================= send ======================= */
+const YES = /^(yes|yeah|yep|sure|ok|okay|confirm|do it|go ahead|نعم|ايوه|أيوه|اي|أكيد|اكيد|موافق|تمام|طيب)\b/i;
+const NO = /^(no|nope|cancel|stop|never ?mind|لا|الغ|ألغ|إلغاء|الغاء|خلاص)\b/i;
+
+function showConfirm(res) {
+  S.pending = res.confirm_text;
+  $id("confirmText").textContent = tr("confirmQ"); $id("confirmText").dir = "auto";
+  $id("confirm").classList.add("show");
+}
+function hideConfirm() { S.pending = null; $id("confirm").classList.remove("show"); }
+
+async function send(text, opts = {}) {
+  text = (text || "").trim();
+  if (!text || S.busy) return;
+  if (S.pending && !opts.confirm) {
+    const lower = text.toLowerCase();
+    if (YES.test(lower)) { addMsg("you", text); const p = S.pending; hideConfirm(); return send(p, { confirm: true, silentEcho: true }); }
+    if (NO.test(lower)) { addMsg("you", text); hideConfirm(); const r = { ok: true, reply: tr("cancelled") }; renderBot(addMsg("bot", ""), r); speak(r.reply, S.lang); return; }
+    hideConfirm();
+  }
+  if (!opts.silentEcho) addMsg("you", text);
+  if (!S.url && !S.demo) { addMsg("bot err", tr("setup")); $id("settings").showModal(); return; }
+  S.busy = true;
+  const holder = addTyping();
+  const payload = { text, key: S.key, confirm: !!opts.confirm, lang: /[؀-ۿ]/.test(text) ? "ar" : S.lang };
+  try {
+    const res = S.demo ? await callDemo(payload) : await callLive(payload);
+    renderBot(holder, res);
+    if (res.needs_confirm) showConfirm(res);
+    speak(res.reply, res.lang || payload.lang);
+    if (!S.demo) { $id("status").className = "pill live"; }
+  } catch (e) {
+    renderBot(holder, { ok: false, reply: e.message || String(e) });
+    if (!S.demo) { $id("status").className = "pill err"; $id("status").querySelector("span").textContent = "Offline"; }
+  } finally { S.busy = false; }
+}
+
+$id("form").addEventListener("submit", (e) => { e.preventDefault(); const v = $id("text").value; $id("text").value = ""; send(v); });
+$id("yesBtn").onclick = () => { const p = S.pending; hideConfirm(); addMsg("you", tr("yes")); send(p, { confirm: true, silentEcho: true }); };
+$id("noBtn").onclick = () => { hideConfirm(); addMsg("you", tr("no")); const r = { ok: true, reply: tr("cancelled") }; renderBot(addMsg("bot", ""), r); speak(r.reply, S.lang); };
+document.querySelectorAll(".seg button").forEach(b => b.onclick = () => setLang(b.dataset.lang));
+$id("speak").checked = S.speak;
+$id("speak").onchange = (e) => { S.speak = e.target.checked; store.set("speak", S.speak); if (!S.speak) try { speechSynthesis.cancel(); } catch (x) {} };
+
+/* ======================= settings ======================= */
+const dlg = $id("settings");
+$id("openSettings").onclick = () => { $id("url").value = S.url; $id("key").value = S.key; $id("demo").checked = S.demo; $id("testOut").textContent = ""; dlg.showModal(); };
+$id("settingsForm").addEventListener("submit", () => {
+  S.url = $id("url").value.trim(); S.key = $id("key").value; S.demo = $id("demo").checked;
+  store.set("url", S.url); store.set("key", S.key); store.set("demo", S.demo); setStatus();
+  addMsg("sys", S.demo ? "Demo mode on: simulated devices." : S.url ? "Connected to n8n." : "Not set up yet.");
+});
+$id("testBtn").onclick = async () => {
+  const out = $id("testOut"); const url = $id("url").value.trim();
+  if ($id("demo").checked) { out.textContent = "Demo mode doesn't need a connection."; return; }
+  if (!url) { out.textContent = "Enter the webhook URL first."; return; }
+  out.textContent = "Testing…";
+  const keep = S.url; S.url = url;
+  try { const r = await callLive({ text: "help", key: $id("key").value, lang: "en" }); out.textContent = r.intent === "auth" ? "✕ Reached n8n, but the access key is wrong." : "✓ Connected. The assistant answered."; }
+  catch (e) { out.textContent = "✕ " + e.message; }
+  finally { S.url = keep; }
+};
+
+/* installable on the home screen */
+try {
+  const icon = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="22" fill="#2fd4b5"/><path d="M20 40v16M32 30v36M48 20v56M64 30v36M76 40v16" stroke="#04221c" stroke-width="7" stroke-linecap="round"/></svg>');
+  const m = { name: "AERIS Voice", short_name: "AERIS", start_url: location.href.split("#")[0], display: "standalone", background_color: "#07142a", theme_color: "#0b1a33", icons: [{ src: icon, sizes: "any", type: "image/svg+xml" }] };
+  $id("manifest").href = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(m));
+  const l = document.createElement("link"); l.rel = "apple-touch-icon"; l.href = icon; document.head.appendChild(l);
+} catch (e) {}
+if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
+
+setStatus(); setLang(S.lang); welcome();
+</script>
+</body>
+</html>
