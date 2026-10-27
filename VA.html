@@ -340,7 +340,24 @@ if (SR && window.isSecureContext) {
     }
     $id("text").value = (finalText + interim).trim();
   };
-  recog.onerror = (e) => { if (e.error !== "no-speech" && e.error !== "aborted") $id("hint").textContent = "Mic: " + e.error; };
+  recog.onerror = (e) => {
+    if (e.error === "no-speech" || e.error === "aborted") return;
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const standalone = navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+    const ar = S.lang === "ar";
+    let msg;
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      if (ios && standalone) msg = ar ? "الآيفون لا يسمح بالتعرّف على الصوت في التطبيقات المضافة إلى الشاشة الرئيسية. افتح الرابط في Safari مباشرةً، أو اكتب الأمر."
+        : "iPhone doesn't allow voice recognition in Home Screen web apps. Open the link in Safari itself, or type your command.";
+      else if (ios) msg = ar ? "الميكروفون أو الإملاء غير مسموح. فعّل: الإعدادات ← عام ← لوحة المفاتيح ← تفعيل الإملاء، والإعدادات ← Safari ← الميكروفون ← السماح."
+        : "Mic or dictation is blocked. Turn on Settings → General → Keyboard → Enable Dictation, and Settings → Safari → Microphone → Allow.";
+      else msg = ar ? "الميكروفون غير مسموح. اضغط على رمز القفل بجانب الرابط واسمح بالميكروفون، واستخدم متصفح Chrome."
+        : "The mic is blocked. Tap the lock icon next to the address, allow the microphone, and use Chrome (not an in-app or Samsung browser).";
+    } else if (e.error === "network") msg = ar ? "خدمة التعرّف على الصوت تحتاج إلى الإنترنت." : "Voice recognition needs an internet connection.";
+    else if (e.error === "audio-capture") msg = ar ? "لم يتم العثور على ميكروفون." : "No microphone was found.";
+    else msg = (ar ? "خطأ في الميكروفون: " : "Mic error: ") + e.error;
+    addMsg("sys", msg);
+  };
   recog.onend = () => {
     S.listening = false; $id("micWrap").classList.remove("listening");
     $id("hint").textContent = micHint();
